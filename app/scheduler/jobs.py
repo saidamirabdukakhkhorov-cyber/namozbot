@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot
 from sqlalchemy import and_, or_, select
 
-from app.bot.keyboards.prayer import prayer_status_keyboard
+from app.bot.keyboards.prayer import prayer_status_keyboard, prayers_batch_status_keyboard
 from app.core.constants import PRAYER_NAMES
 from app.db.models import DailyPrayer, User
 from app.db.repositories.daily_prayers import DailyPrayersRepository
@@ -15,6 +17,8 @@ from app.db.session import AsyncSessionLocal
 from app.scheduler.locks import advisory_lock
 from app.services.i18n import prayer_label, t
 from app.services.prayer_times import PrayerTimesService
+
+TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
 
 
 async def ensure_daily_prayers_job() -> None:
@@ -49,6 +53,55 @@ async def ensure_daily_prayers_job() -> None:
             await session.commit()
 
 
+def _due_prayer_time(daily: DailyPrayer) -> datetime:
+    return daily.snooze_until if daily.status == "snoozed" and daily.snooze_until else daily.prayer_time
+
+
+def _format_single_reminder_text(language: str, daily: DailyPrayer) -> str:
+    now_tashkent = datetime.now(TASHKENT_TZ)
+    reminder_text = t(
+        language,
+        "reminder.prayer_time",
+        prayer=prayer_label(language, daily.prayer_name),
+    )
+    return (
+        f"📅 {now_tashkent.strftime('%d.%m.%Y')}\n"
+        f"🕒 {now_tashkent.strftime('%H:%M')} (Toshkent vaqti, GMT+5)\n\n"
+        f"{reminder_text}"
+    )
+
+
+def _format_batch_reminder_text(language: str, daily_prayers: list[DailyPrayer]) -> str:
+    now_tashkent = datetime.now(TASHKENT_TZ)
+    date_text = now_tashkent.strftime("%d.%m.%Y")
+    time_text = now_tashkent.strftime("%H:%M")
+
+    if language == "ru":
+        title = "Сегодняшние намазы"
+        question = "Отметьте статус каждого намаза:"
+        tz_label = "ташкентское время, GMT+5"
+    elif language == "en":
+        title = "Today's prayers"
+        question = "Mark each prayer status:"
+        tz_label = "Tashkent time, GMT+5"
+    else:
+        title = "Bugungi namozlar"
+        question = "Har bir namoz holatini belgilang:"
+        tz_label = "Toshkent vaqti, GMT+5"
+
+    lines = [
+        f"📅 {title} — {date_text}",
+        f"🕒 {time_text} ({tz_label})",
+        "",
+        question,
+        "",
+    ]
+    for daily in daily_prayers:
+        prayer_time = _due_prayer_time(daily).astimezone(TASHKENT_TZ).strftime("%H:%M")
+        lines.append(f"🕌 {prayer_label(language, daily.prayer_name)} — {prayer_time}")
+    return "\n".join(lines)
+
+
 async def send_due_prayer_reminders_job(bot: Bot) -> None:
     now = datetime.now(timezone.utc)
     pending_window_end = now + timedelta(minutes=1)
@@ -74,42 +127,53 @@ async def send_due_prayer_reminders_job(bot: Bot) -> None:
                             ),
                         )
                     )
-                    .order_by(DailyPrayer.prayer_time.asc())
+                    .order_by(DailyPrayer.user_id.asc(), DailyPrayer.prayer_time.asc())
                     .limit(200)
                 )
             ).all()
 
             reminders = RemindersRepository(session)
+            grouped: dict[int, list[tuple[DailyPrayer, int]]] = defaultdict(list)
+
             for daily in rows:
                 user = await session.get(User, daily.user_id)
                 if not user or not user.is_active:
                     continue
 
-                scheduled_for = daily.snooze_until if daily.status == "snoozed" and daily.snooze_until else daily.prayer_time
                 log, created = await reminders.create_pending(
                     user_id=user.id,
                     reminder_type="prayer_time",
                     related_entity_type="daily_prayer",
                     related_entity_id=daily.id,
-                    scheduled_for=scheduled_for,
+                    scheduled_for=_due_prayer_time(daily),
                 )
-                if not created:
+                if created and log:
+                    grouped[user.id].append((daily, log.id))
+
+            for user_id, items in grouped.items():
+                user = await session.get(User, user_id)
+                if not user or not user.is_active:
                     continue
 
+                daily_items = [daily for daily, _ in items]
+                log_ids = [log_id for _, log_id in items]
+                lang = user.language_code or "uz"
+
                 try:
-                    reminder_text = t(
-                        user.language_code,
-                        "reminder.prayer_time",
-                        prayer=prayer_label(user.language_code, daily.prayer_name),
-                    )
-                    await bot.send_message(
-                        user.telegram_id,
-                        reminder_text,
-                        reply_markup=prayer_status_keyboard(user.language_code, daily.id),
-                    )
-                    await reminders.mark_sent(log.id)
+                    if len(daily_items) == 1:
+                        daily = daily_items[0]
+                        text = _format_single_reminder_text(lang, daily)
+                        reply_markup = prayer_status_keyboard(lang, daily.id)
+                    else:
+                        text = _format_batch_reminder_text(lang, daily_items)
+                        reply_markup = prayers_batch_status_keyboard(lang, daily_items)
+
+                    await bot.send_message(user.telegram_id, text, reply_markup=reply_markup)
+                    for log_id in log_ids:
+                        await reminders.mark_sent(log_id)
                 except Exception as exc:
-                    await reminders.mark_failed(log.id, str(exc)[:500])
+                    for log_id in log_ids:
+                        await reminders.mark_failed(log_id, str(exc)[:500])
 
             await session.commit()
 

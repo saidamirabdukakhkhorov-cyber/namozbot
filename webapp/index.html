@@ -308,6 +308,12 @@
 <script>
 // ─── TELEGRAM INIT ───
 const tg = window.Telegram?.WebApp;
+const APP_TZ = 'Asia/Tashkent';
+function todayTashkentISO() {
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone: APP_TZ, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
 if (tg) { tg.expand(); tg.setHeaderColor('#1a6b4a'); tg.setBackgroundColor('#f7f5f0'); }
 
 const API_BASE = '';
@@ -510,7 +516,7 @@ function openPrayerModal(key) {
 // ─── ADD QAZO MODAL ───
 let selPrayer = null;
 function openAddQazo() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayTashkentISO();
   document.getElementById('modal-body').innerHTML = `
     <div class="mtitle">Qazo qo'shish</div>
     <div class="msub">Qaysi namoz qazo bo'lgan?</div>
@@ -669,7 +675,7 @@ async function doMarkDone(key, count) {
 
 function openAddQazoFor(key) {
   const p = PRAYERS.find(x => x.key === key);
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayTashkentISO();
   document.getElementById('modal-body').innerHTML = `
     <div class="mtitle">${p.name} — qazo qo'shish</div>
     <div class="msub">Qaysi sana?</div>
@@ -683,7 +689,7 @@ function openAddQazoFor(key) {
 }
 
 async function submitAddQazoFor(key) {
-  const dt = document.getElementById('qazo-dt-'+key)?.value || new Date().toISOString().split('T')[0];
+  const dt = document.getElementById('qazo-dt-'+key)?.value || todayTashkentISO();
   const res = await postAction({action:'add_qazo', prayer:key, date:dt});
   if (res.ok) {
     if (res.created !== false) {

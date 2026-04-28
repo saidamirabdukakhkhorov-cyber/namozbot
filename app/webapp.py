@@ -8,23 +8,57 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl
 
 from aiohttp import web
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.core.config import settings
 from app.db.models import DailyPrayer, MissedPrayer, ReminderSetting, User
 from app.db.repositories.daily_prayers import DailyPrayersRepository
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.users import UsersRepository
+from app.db.repositories.prayer_times import PrayerTimesRepository
+from app.services.prayer_times import PrayerTimesService
 from app.db.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 WEBAPP_DIR = Path(__file__).parent.parent / "webapp"
 PRAYER_NAMES = ("fajr", "dhuhr", "asr", "maghrib", "isha")
+TASHKENT_TZ = "Asia/Tashkent"
+
+
+def tashkent_today() -> date:
+    """Return current date in GMT+5 / Asia/Tashkent, not server local date."""
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo(TASHKENT_TZ)).date()
+
+
+async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date: date) -> DailyPrayer:
+    """Ensure Mini App writes are visible in bot screens that read daily_prayers."""
+    repo = DailyPrayersRepository(session)
+    daily = await repo.get(user.id, prayer, prayer_date)
+    if daily:
+        return daily
+
+    tz = user.timezone or TASHKENT_TZ
+    city = user.city or "Toshkent"
+    prayer_dt = datetime.combine(prayer_date, time(0, 0), tzinfo=timezone.utc)
+    try:
+        service = PrayerTimesService(PrayerTimesRepository(session))
+        dto = await service.get_or_fetch(city, prayer_date, tz)
+        prayer_dt = service.combine(prayer_date, dto.as_dict()[prayer], tz)
+    except Exception as exc:
+        logger.warning("Could not resolve prayer time for mini app status update: %s", exc)
+
+    return await repo.upsert_pending(
+        user_id=user.id,
+        prayer_name=prayer,
+        prayer_date=prayer_date,
+        prayer_time=prayer_dt,
+    )
 
 
 # ─── AUTH ───
@@ -97,7 +131,7 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "settings": {"prayer_reminders": True, "qazo_reminders": True},
             })
 
-        today = date.today()
+        today = tashkent_today()
 
         # ── Today's prayer statuses ──
         daily_rows = await session.execute(
@@ -227,13 +261,13 @@ async def api_action(request: web.Request) -> web.Response:
         # ── ADD QAZO ──
         elif action == "add_qazo":
             prayer = body.get("prayer", "")
-            raw_date = body.get("date", str(date.today()))
+            raw_date = body.get("date", str(tashkent_today()))
             if prayer in PRAYER_NAMES:
                 try:
                     prayer_date = date.fromisoformat(raw_date)
                 except ValueError:
-                    prayer_date = date.today()
-                if prayer_date > date.today():
+                    prayer_date = tashkent_today()
+                if prayer_date > tashkent_today():
                     return web.json_response({"error": "future date"}, status=400)
                 repo = MissedPrayersRepository(session)
                 _, created = await repo.create(
@@ -269,40 +303,36 @@ async def api_action(request: web.Request) -> web.Response:
             if prayer not in PRAYER_NAMES or status not in ("prayed", "missed", "pending"):
                 return web.json_response({"error": "invalid params"}, status=400)
 
-            today = date.today()
-            daily: DailyPrayer | None = await session.scalar(
-                select(DailyPrayer).where(
-                    DailyPrayer.user_id == user.id,
-                    DailyPrayer.prayer_name == prayer,
-                    DailyPrayer.prayer_date == today,
-                )
-            )
-            if daily:
-                repo = DailyPrayersRepository(session)
-                await repo.set_status(daily.id, status)
+            today = tashkent_today()
+            daily = await ensure_daily_prayer_row(session, user, prayer, today)
 
-                # If marked as missed → also add to qazo list
-                if status == "missed":
-                    missed_repo = MissedPrayersRepository(session)
-                    await missed_repo.create(
-                        user_id=user.id,
-                        prayer_name=prayer,
-                        prayer_date=today,
-                        source="daily_confirmation",
-                        daily_prayer_id=daily.id,
+            repo = DailyPrayersRepository(session)
+            await repo.set_status(daily.id, status)
+
+            if status == "missed":
+                missed_repo = MissedPrayersRepository(session)
+                await missed_repo.create(
+                    user_id=user.id,
+                    prayer_name=prayer,
+                    prayer_date=today,
+                    source="daily_confirmation",
+                    daily_prayer_id=daily.id,
+                )
+            elif status == "prayed":
+                # If the user changes an earlier "missed" status to "prayed",
+                # remove the qazo row that was created by daily confirmation.
+                await session.execute(
+                    delete(MissedPrayer).where(
+                        MissedPrayer.user_id == user.id,
+                        MissedPrayer.prayer_name == prayer,
+                        MissedPrayer.prayer_date == today,
+                        MissedPrayer.status == "active",
+                        MissedPrayer.source == "daily_confirmation",
                     )
-                await session.commit()
-            else:
-                # DailyPrayer doesn't exist yet for today — only create if marking missed
-                if status == "missed":
-                    missed_repo = MissedPrayersRepository(session)
-                    await missed_repo.create(
-                        user_id=user.id,
-                        prayer_name=prayer,
-                        prayer_date=today,
-                        source="manual",
-                    )
-                    await session.commit()
+                )
+
+            await session.commit()
+            return web.json_response({"ok": True})
 
     return web.json_response({"ok": True})
 

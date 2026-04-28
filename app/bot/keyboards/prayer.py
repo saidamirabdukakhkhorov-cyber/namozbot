@@ -60,3 +60,21 @@ def prayer_select_keyboard(language: str, prefix: str) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(text=t(language, "common.back"), callback_data="qazo_add:start")])
     rows.append([InlineKeyboardButton(text=t(language, "common.cancel"), callback_data="cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def prayers_batch_status_keyboard(language: str, daily_prayers: Iterable[DailyPrayerLike]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for daily in daily_prayers:
+        rows.append([
+            InlineKeyboardButton(
+                text=prayer_label(language, daily.prayer_name),
+                callback_data=f"today:detail:{daily.id}",
+            )
+        ])
+        rows.append([
+            InlineKeyboardButton(text=t(language, "today.action.read"), callback_data=f"daily:prayed:{daily.id}"),
+            InlineKeyboardButton(text=t(language, "today.action.qazo"), callback_data=f"daily:missed:{daily.id}"),
+            InlineKeyboardButton(text=t(language, "today.action.snooze"), callback_data=f"daily:snooze:{daily.id}"),
+        ])
+    rows.append([InlineKeyboardButton(text=t(language, "menu.today"), callback_data="today:open")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
