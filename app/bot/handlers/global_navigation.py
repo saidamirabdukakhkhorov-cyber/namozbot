@@ -94,9 +94,9 @@ async def send_global_menu_screen(
     if action == "admin":
         telegram_id = message.from_user.id if message.from_user else None
         if telegram_id not in app_settings.admin_ids:
-            await message.answer("Bu bo'lim faqat adminlar uchun.")
+            await message.answer(t(lang, "admin.not_allowed"))
             return
-        await message.answer("🛡 Admin panel", reply_markup=admin_keyboard())
+        await message.answer(t(lang, "admin.title"), reply_markup=admin_keyboard())
         return
 
     _assert_never(action)

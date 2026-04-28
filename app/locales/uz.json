@@ -224,5 +224,7 @@
   "settings.daily_limit.choose": "🔢 Kunlik qazo eslatma limiti\n\nKuniga nechta qazo eslatma yuborilsin?",
   "settings.daily_limit.prompt": "🔢 Kunlik limit\n\n1 dan 10 gacha son yozing.\n\nMasalan:\n2",
   "settings.daily_limit.invalid": "Iltimos, 1 dan 10 gacha son kiriting.\n\nMasalan:\n2",
-  "settings.daily_limit.updated": "✅ Kunlik qazo eslatma limiti yangilandi: {count} ta"
+  "settings.daily_limit.updated": "✅ Kunlik qazo eslatma limiti yangilandi: {count} ta",
+  "admin.not_allowed": "Bu bo'lim faqat adminlar uchun.",
+  "admin.title": "🛡 Admin panel"
 }
