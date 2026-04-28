@@ -310,7 +310,7 @@
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.expand(); tg.setHeaderColor('#1a6b4a'); tg.setBackgroundColor('#f7f5f0'); }
 
-const API_BASE = '';  // same origin
+const API_BASE = '';
 const PRAYERS = [
   {key:'fajr',   name:'Bomdod'},
   {key:'dhuhr',  name:'Peshin'},
@@ -334,7 +334,7 @@ let loaded = false;
 // ─── FETCH FROM SERVER ───
 async function loadData() {
   try {
-    const res = await fetch(API_BASE + '/webapp/api/data', {
+    const res = await fetch(API_BASE + '/api/data', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ init_data: tg?.initData || '' })
@@ -359,7 +359,7 @@ async function loadData() {
 
 async function postAction(payload) {
   try {
-    const res = await fetch(API_BASE + '/webapp/api/action', {
+    const res = await fetch(API_BASE + '/api/action', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({...payload, init_data: tg?.initData || ''})

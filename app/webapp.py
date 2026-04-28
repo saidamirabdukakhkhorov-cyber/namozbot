@@ -309,10 +309,13 @@ async def api_action(request: web.Request) -> web.Response:
 
 def create_webapp() -> web.Application:
     app = web.Application()
+    # Telegram opens WEBAPP_URL directly (root "/"), so serve index.html at "/"
+    app.router.add_get("/", serve_index)
     app.router.add_get("/webapp", serve_index)
     app.router.add_get("/webapp/", serve_index)
+    # API endpoints at both root and /webapp prefix
+    app.router.add_post("/api/data", api_get_data)
+    app.router.add_post("/api/action", api_action)
     app.router.add_post("/webapp/api/data", api_get_data)
     app.router.add_post("/webapp/api/action", api_action)
-    if WEBAPP_DIR.exists():
-        app.router.add_static("/webapp/static", WEBAPP_DIR, show_index=False)
     return app
