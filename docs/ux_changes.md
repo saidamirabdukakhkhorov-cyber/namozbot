@@ -10,12 +10,12 @@
 ## Onboarding
 
 - `/start` now opens a guided onboarding:
-  1. Language
-  2. Intro
-  3. Privacy
-  4. City
-  5. Reminder preference
-  6. Dashboard
+  - Language
+  - Intro
+  - Privacy
+  - City
+  - Reminder preference
+  - Dashboard
 
 ## Dashboard
 
@@ -40,24 +40,24 @@
 - Default qazo screen shows current-month/current-source qazos.
 - Calculator-generated qazos are separated into their own section.
 - Added period filter UI with today, yesterday, week, month, year and custom range.
-- Qazo add flow is now date -> prayer -> confirmation.
+- Qazo add flow is now date -\> prayer -\> confirmation.
 
 ## Qazo calculator
 
 - Rebuilt as a wizard:
-  1. Period type
-  2. Start input
-  3. End input
-  4. Prayer selection
-  5. Preview
-  6. Confirmation before saving
+  - Period type
+  - Start input
+  - End input
+  - Prayer selection
+  - Preview
+  - Confirmation before saving
 - Month/year inputs are explained before the user types.
 - Preview shows period, days, per-prayer breakdown and total.
 - Bulk apply requires confirmation.
 
 ## Qazo completion
 
-- Rebuilt as source -> prayer -> count.
+- Rebuilt as source -\> prayer -\> count.
 - Count buttons only show valid options based on active count.
 - Manual count validation prevents invalid or too-large numbers.
 - Success screen includes undo, repeat, qazo list and main menu.
@@ -93,3 +93,11 @@
 - Added a monthly provider helper for `GET https://islomapi.uz/api/monthly?region=Toshkent&month=4`.
 - `PRAYER_API_BASE_URL` should now be `https://islomapi.uz`.
 - Older Aladhan base URLs left in Railway are normalized to islomapi.uz to avoid breaking deploys.
+
+## Fix 3 — Reply Keyboard global menu reliability
+
+- Added `app/bot/handlers/global_menu.py` as a single reliable entry point for global Reply Keyboard navigation.
+- Added `GlobalMenuFilter` and `detect_global_menu_action()` in `app/bot/filters/text.py`.
+- Global menu taps now clear the active flow state and open the requested top-level screen before feature/state handlers run.
+- Fixed Telegram client emoji variation issues such as `⚙️ Sozlamalar`, `⚙ Sozlamalar`, and `Sozlamalar` not being handled consistently.
+- This specifically fixes the Settings button appearing in chat but not opening the Settings screen.
