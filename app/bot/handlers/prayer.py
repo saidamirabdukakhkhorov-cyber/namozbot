@@ -10,6 +10,7 @@ from app.bot.keyboards.prayer import prayer_status_keyboard, snooze_keyboard
 from app.db.repositories.daily_prayers import DailyPrayersRepository
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.services.i18n import prayer_label, t
+from app.services.timezone import tashkent_now
 
 router = Router(name="prayer")
 
@@ -75,6 +76,16 @@ async def daily_action(callback: CallbackQuery, current_user, session):
         return
 
     prayer = prayer_label(lang, daily.prayer_name)
+    now_tz = tashkent_now()
+    if action in ("prayed", "missed") and daily.prayer_time:
+        prayer_time = daily.prayer_time
+        if prayer_time.tzinfo is None:
+            prayer_time = prayer_time.replace(tzinfo=timezone.utc)
+        if prayer_time.astimezone(now_tz.tzinfo) > now_tz:
+            left = int((prayer_time.astimezone(now_tz.tzinfo) - now_tz).total_seconds() // 60)
+            await callback.answer(f"Bu namoz vaqti hali kirmagan. {max(left, 0)} daqiqa qoldi", show_alert=True)
+            return
+
     if action == "prayed":
         await daily_repo.set_status(daily_id, "prayed")
         text = t(lang, "today.success.prayed", prayer=prayer)

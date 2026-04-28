@@ -44,6 +44,8 @@
   .pc.active-next{border-color:var(--green);background:var(--green-l)}
   .pc.prayed{background:#f0faf4;border-color:#a8d5bc}
   .pc.missed{background:#fff8f0;border-color:#f0c89a}
+  .pc.future{opacity:.62;cursor:not-allowed}
+  .pc.future .pc-time::after{content:"  hali kirmadi";font-size:11px;color:var(--muted)}
   .pc-name{font-size:13px;font-weight:500;margin-bottom:2px}
   .pc-time{font-size:18px;font-weight:300;letter-spacing:-.5px;color:var(--text)}
   .pc-time.no-time{font-size:13px;color:var(--muted)}
@@ -341,7 +343,7 @@ const LANGS  = [{c:'uz',n:"O'zbekcha"},{c:'ru',n:'Русский'},{c:'en',n:'En
 // ─── STATE (from server) ───
 let D = {
   name:'', city:'Toshkent', lang:'uz', today: todayTashkentISO(), timezone: APP_TZ,
-  prayers:{}, prayer_times:{}, prayer_datetimes:{}, next_prayer:null, current_time:'', current_datetime:'',
+  prayers:{}, prayer_times:{}, prayer_datetimes:{}, can_mark:{}, minutes_until:{}, next_prayer:null, current_time:'', current_datetime:'',
   qazo:{fajr:0,dhuhr:0,asr:0,maghrib:0,isha:0},
   stats:{prayed:0,missed:0,completed:0,active:0},
   settings:{prayer_reminders:true,qazo_reminders:true},
@@ -367,6 +369,7 @@ async function loadData() {
     D.name = tg?.initDataUnsafe?.user?.first_name || 'Demo';
     D.prayer_times = {fajr:'04:12',sunrise:'05:39',dhuhr:'12:25',asr:'16:55',maghrib:'19:24',isha:'20:48'};
     D.prayers = {fajr:'prayed',dhuhr:'prayed',asr:'pending',maghrib:'pending',isha:'pending'};
+    D.can_mark = {fajr:true,dhuhr:true,asr:false,maghrib:false,isha:false};
     D.qazo = {fajr:3,dhuhr:2,asr:0,maghrib:5,isha:1};
     D.stats = {prayed:42,missed:8,completed:15,active:11};
     D.today = todayTashkentISO();
@@ -439,6 +442,21 @@ function formatCountdown(totalMinutes) {
   return `${mins} daqiqa qoldi`;
 }
 
+function isPrayerDue(key) {
+  if (key === 'sunrise') return true;
+  if (D.can_mark && Object.prototype.hasOwnProperty.call(D.can_mark, key)) return !!D.can_mark[key];
+  const value = D.prayer_times[key];
+  if (!value) return false;
+  const [h, m] = value.split(':').map(Number);
+  return minutesNowInTashkent() >= h * 60 + m;
+}
+
+function futurePrayerText(key) {
+  const left = D.minutes_until?.[key];
+  if (typeof left === 'number' && left > 0) return `Bu namoz vaqti hali kirmagan. ${formatCountdown(left)}`;
+  return 'Bu namoz vaqti hali kirmagan';
+}
+
 function renderToday() {
   renderClock();
   const nowMin = minutesNowInTashkent();
@@ -472,10 +490,12 @@ function renderToday() {
       : '<div class="badge pending">·</div>';
 
     const isNext = nextPrayer && nextPrayer.key === p.key;
+    const due = isReadonly || isPrayerDue(p.key);
     const classes = isReadonly ? (isNext ? 'active-next' : '') : (status === 'prayed' ? 'prayed' : status === 'missed' ? 'missed' : isNext ? 'active-next' : '');
-    const click = isReadonly ? '' : `onclick="openPrayerModal('${p.key}')"`;
-    const sub = isReadonly ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">Bomdoddan keyin</div>' : '';
-    return `<div class="pc ${classes}" ${click}>
+    const futureClass = (!isReadonly && !due) ? ' future' : '';
+    const click = isReadonly ? '' : (due ? `onclick="openPrayerModal('${p.key}')"` : `onclick="showToast(futurePrayerText('${p.key}'))"`);
+    const sub = isReadonly ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">Bomdoddan keyin</div>' : ((!due && status === 'pending') ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">Vaqti hali kirmadi</div>' : '');
+    return `<div class="pc ${classes}${futureClass}" ${click}>
       ${badge}
       <div class="pc-name">${p.name}</div>
       <div class="pc-time ${timeStr ? '' : 'no-time'}">${timeStr || 'Yuklanmadi'}</div>
@@ -562,12 +582,16 @@ function openPrayerModal(key) {
   const status = D.prayers[key] || 'pending';
   const timeStr = D.prayer_times[key] ? ` — ${D.prayer_times[key]}` : '';
   const statusTxt = status==='prayed'?"✓ O'qilgan" : status==='missed'?"✗ Qazo" : "⏳ Kutilmoqda";
+  const due = isPrayerDue(key);
+  const lockedNotice = due ? '' : `<div class="msub" style="color:#d4600a">${futurePrayerText(key)}</div>`;
   document.getElementById('modal-body').innerHTML = `
     <div class="mtitle">${p.name}${timeStr}</div>
     <div class="msub">Holat: ${statusTxt}</div>
+    ${lockedNotice}
     <div class="mactions">
-      <button class="mbtn p" onclick="setPrayerStatus('${key}','prayed')">✓ O'qidim</button>
-      <button class="mbtn d" onclick="setPrayerStatus('${key}','missed')">✗ Qazo bo'ldi</button>
+      ${due ? `<button class="mbtn p" onclick="setPrayerStatus('${key}','prayed')">✓ O'qidim</button>
+      <button class="mbtn d" onclick="setPrayerStatus('${key}','missed')">✗ Qazo bo'ldi</button>` : ''}
+      ${status !== 'pending' ? `<button class="mbtn s" onclick="setPrayerStatus('${key}','pending')">⏳ Kutilmoqda qilish</button>` : ''}
       <button class="mbtn c" onclick="closeModal()">Yopish</button>
     </div>`;
   openModal();
@@ -652,14 +676,18 @@ async function setCity(city) {
 
 // ─── PRAYER STATUS ───
 async function setPrayerStatus(key, status) {
+  if ((status === 'prayed' || status === 'missed') && !isPrayerDue(key)) {
+    showToast(futurePrayerText(key));
+    return;
+  }
   closeModal();
   showToast('Saqlanmoqda...');
   const res = await postAction({action:'set_prayer_status', prayer:key, status});
   if (res.ok) {
     await loadData();
-    showToast(status==='prayed' ? "✓ O'qilgan deb belgilandi" : "📌 Qazo sifatida qo'shildi");
+    showToast(status==='prayed' ? "✓ O'qilgan deb belgilandi" : status==='missed' ? "📌 Qazo sifatida qo'shildi" : "✓ Yangilandi");
   } else {
-    showToast('Xato yuz berdi');
+    showToast(res.message || (res.error === 'future_prayer' ? futurePrayerText(key) : 'Xato yuz berdi'));
     await loadData();
   }
 }

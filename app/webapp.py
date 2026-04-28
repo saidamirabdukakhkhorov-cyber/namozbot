@@ -40,7 +40,7 @@ def _extract_sunrise_time(raw_payload: dict) -> time | None:
     """Extract sunrise/quyosh from islomapi-compatible raw payload without DB schema changes."""
     try:
         data = _extract_times(raw_payload or {})
-        for key in ("quyosh", "sunrise", "Sunrise", "sunrise_time"):
+        for key in ("quyosh", "Quyosh", "kun", "sunrise", "Sunrise", "sunrise_time", "sunriseTime"):
             if key in data and data[key]:
                 return _parse_hhmm(data[key])
         lower = {str(k).lower(): v for k, v in data.items()}
@@ -80,6 +80,26 @@ def _build_next_prayer(prayer_times: dict[str, str], now: datetime) -> dict | No
         return None
     diff, key, value = best
     return {"key": key, "name": names.get(key, key), "time": value, "minutes_left": diff}
+
+
+def _is_prayer_due(prayer_time: datetime | None, now: datetime | None = None) -> bool:
+    """Only allow status changes after the actual prayer time in Asia/Tashkent."""
+    if prayer_time is None:
+        return False
+    now = now or tashkent_now()
+    if prayer_time.tzinfo is None:
+        prayer_time = prayer_time.replace(tzinfo=timezone.utc)
+    return prayer_time.astimezone(now.tzinfo) <= now
+
+
+def _minutes_until(prayer_time: datetime | None, now: datetime | None = None) -> int | None:
+    if prayer_time is None:
+        return None
+    now = now or tashkent_now()
+    if prayer_time.tzinfo is None:
+        prayer_time = prayer_time.replace(tzinfo=timezone.utc)
+    delta = prayer_time.astimezone(now.tzinfo) - now
+    return max(0, int(delta.total_seconds() // 60))
 
 
 async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date: date) -> DailyPrayer:
@@ -172,6 +192,9 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "lang": "uz",
                 "prayers": {},
                 "prayer_times": {},
+                "prayer_datetimes": {},
+                "can_mark": {},
+                "minutes_until": {},
                 "qazo": {p: 0 for p in PRAYER_NAMES},
                 "stats": {"prayed": 0, "missed": 0, "completed": 0, "active": 0},
                 "settings": {"prayer_reminders": True, "qazo_reminders": True},
@@ -190,6 +213,8 @@ async def api_get_data(request: web.Request) -> web.Response:
         # ── Authoritative prayer times for Mini App and bot sync ──
         prayer_times: dict[str, str] = {}
         prayer_iso_times: dict[str, str] = {}
+        can_mark: dict[str, bool] = {}
+        minutes_until: dict[str, int | None] = {}
         try:
             service = PrayerTimesService(PrayerTimesRepository(session))
             dto = await service.get_or_fetch(city, today, tz)
@@ -228,6 +253,8 @@ async def api_get_data(request: web.Request) -> web.Response:
                 local_time = prayer_time.astimezone(ZoneInfo(tz))
                 prayer_times[prayer_name] = local_time.strftime("%H:%M")
                 prayer_iso_times[prayer_name] = local_time.isoformat()
+            can_mark[prayer_name] = _is_prayer_due(prayer_time, now_tz)
+            minutes_until[prayer_name] = _minutes_until(prayer_time, now_tz)
 
         next_prayer = _build_next_prayer(prayer_times, now_tz)
 
@@ -280,6 +307,8 @@ async def api_get_data(request: web.Request) -> web.Response:
             "prayers": prayers,
             "prayer_times": prayer_times,   # HH:MM strings in Asia/Tashkent
             "prayer_datetimes": prayer_iso_times,
+            "can_mark": can_mark,
+            "minutes_until": minutes_until,
             "next_prayer": next_prayer,
             "current_time": now_tz.strftime("%H:%M"),
             "current_datetime": now_tz.isoformat(),
