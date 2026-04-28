@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from app.services.timezone import tashkent_today
+
 
 @dataclass(frozen=True)
 class Period:
@@ -22,12 +24,12 @@ def previous_month(d: date) -> tuple[date, date]:
 
 
 def current_month_range(today: date | None = None) -> tuple[date, date]:
-    today = today or date.today()
+    today = today or tashkent_today()
     return month_start(today), today
 
 
 def period_by_key(key: str, today: date | None = None) -> Period:
-    today = today or date.today()
+    today = today or tashkent_today()
 
     if key == "today":
         return Period(key, today, today)

@@ -25,6 +25,7 @@ from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.qazo_calculations import QazoCalculationsRepository
 from app.db.repositories.states import StatesRepository
 from app.services.date_periods import current_month_range, period_by_key
+from app.services.timezone import tashkent_today
 from app.services.i18n import prayer_label, t
 
 router = Router(name="qazo")
@@ -191,7 +192,8 @@ async def qazo_add_date(callback: CallbackQuery, current_user: User, session):
         await StatesRepository(session).set(current_user.id, "waiting_qazo_add_date", {})
         await send_or_edit(callback, t(lang, "qazo.add.custom_date"))
         return
-    day = date.today() if raw_day == "today" else date.today() - timedelta(days=1)
+    today = tashkent_today()
+    day = today if raw_day == "today" else today - timedelta(days=1)
     await StatesRepository(session).set(current_user.id, "qazo_add_prayer", {"date": day.isoformat()})
     text = t(lang, "qazo.add.prayer_screen", date=day.isoformat())
     await send_or_edit(callback, text, prayer_select_keyboard(lang, "qazo_add_prayer"))
@@ -202,7 +204,7 @@ async def qazo_add_choose_prayer(callback: CallbackQuery, current_user: User, se
     lang = current_user.language_code or "uz"
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    day = payload.get("date", date.today().isoformat())
+    day = payload.get("date", tashkent_today().isoformat())
     await StatesRepository(session).set(current_user.id, "qazo_add_prayer", {"date": day})
     await send_or_edit(callback, t(lang, "qazo.add.prayer_screen", date=day), prayer_select_keyboard(lang, "qazo_add_prayer"))
 

@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timezone, timedelta
 from pathlib import Path
 from urllib.parse import parse_qsl
 
@@ -21,19 +21,65 @@ from app.db.repositories.daily_prayers import DailyPrayersRepository
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.users import UsersRepository
 from app.db.repositories.prayer_times import PrayerTimesRepository
-from app.services.prayer_times import PrayerTimesService
+from app.services.prayer_times import PrayerTimesService, _extract_times, _parse_hhmm
 from app.db.session import AsyncSessionLocal
+from app.services.timezone import TASHKENT_TIMEZONE, tashkent_now
 
 logger = logging.getLogger(__name__)
 WEBAPP_DIR = Path(__file__).parent.parent / "webapp"
 PRAYER_NAMES = ("fajr", "dhuhr", "asr", "maghrib", "isha")
-TASHKENT_TZ = "Asia/Tashkent"
+TASHKENT_TZ_NAME = TASHKENT_TIMEZONE
 
 
 def tashkent_today() -> date:
     """Return current date in GMT+5 / Asia/Tashkent, not server local date."""
+    return tashkent_now().date()
+
+
+def _extract_sunrise_time(raw_payload: dict) -> time | None:
+    """Extract sunrise/quyosh from islomapi-compatible raw payload without DB schema changes."""
+    try:
+        data = _extract_times(raw_payload or {})
+        for key in ("quyosh", "sunrise", "Sunrise", "sunrise_time"):
+            if key in data and data[key]:
+                return _parse_hhmm(data[key])
+        lower = {str(k).lower(): v for k, v in data.items()}
+        for key in ("quyosh", "sunrise"):
+            if lower.get(key):
+                return _parse_hhmm(lower[key])
+    except Exception as exc:
+        logger.warning("Could not extract sunrise time: %s", exc)
+    return None
+
+
+def _time_to_local_iso(day: date, value: time, tz_name: str = TASHKENT_TZ_NAME) -> str:
     from zoneinfo import ZoneInfo
-    return datetime.now(ZoneInfo(TASHKENT_TZ)).date()
+    return datetime.combine(day, value, tzinfo=ZoneInfo(tz_name)).isoformat()
+
+
+def _build_next_prayer(prayer_times: dict[str, str], now: datetime) -> dict | None:
+    order = ("fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha")
+    names = {"fajr": "Bomdod", "sunrise": "Quyosh", "dhuhr": "Peshin", "asr": "Asr", "maghrib": "Shom", "isha": "Xufton"}
+    now_min = now.hour * 60 + now.minute
+    best: tuple[int, str, str] | None = None
+    for key in order:
+        value = prayer_times.get(key)
+        if not value:
+            continue
+        try:
+            hour, minute = [int(x) for x in value.split(":")[:2]]
+        except Exception:
+            continue
+        prayer_min = hour * 60 + minute
+        diff = prayer_min - now_min
+        if diff <= 0:
+            diff += 24 * 60
+        if best is None or diff < best[0]:
+            best = (diff, key, value)
+    if not best:
+        return None
+    diff, key, value = best
+    return {"key": key, "name": names.get(key, key), "time": value, "minutes_left": diff}
 
 
 async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date: date) -> DailyPrayer:
@@ -43,7 +89,7 @@ async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date:
     if daily:
         return daily
 
-    tz = user.timezone or TASHKENT_TZ
+    tz = TASHKENT_TZ_NAME
     city = user.city or "Toshkent"
     prayer_dt = datetime.combine(prayer_date, time(0, 0), tzinfo=timezone.utc)
     try:
@@ -129,24 +175,61 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "qazo": {p: 0 for p in PRAYER_NAMES},
                 "stats": {"prayed": 0, "missed": 0, "completed": 0, "active": 0},
                 "settings": {"prayer_reminders": True, "qazo_reminders": True},
+                "today": tashkent_today().isoformat(),
+                "current_time": tashkent_now().strftime("%H:%M"),
+                "current_datetime": tashkent_now().isoformat(),
+                "next_prayer": None,
+                "timezone": TASHKENT_TZ_NAME,
             })
 
         today = tashkent_today()
+        now_tz = tashkent_now()
+        tz = TASHKENT_TZ_NAME
+        city = user.city or "Toshkent"
 
-        # ── Today's prayer statuses ──
+        # ── Authoritative prayer times for Mini App and bot sync ──
+        prayer_times: dict[str, str] = {}
+        prayer_iso_times: dict[str, str] = {}
+        try:
+            service = PrayerTimesService(PrayerTimesRepository(session))
+            dto = await service.get_or_fetch(city, today, tz)
+            for name, value in dto.as_dict().items():
+                prayer_times[name] = value.strftime("%H:%M")
+                prayer_iso_times[name] = _time_to_local_iso(today, value, tz)
+
+            sunrise = _extract_sunrise_time(dto.raw_payload)
+            if sunrise:
+                prayer_times["sunrise"] = sunrise.strftime("%H:%M")
+                prayer_iso_times["sunrise"] = _time_to_local_iso(today, sunrise, tz)
+
+            # Opening the Mini App ensures today's rows exist in the same table the bot reads.
+            daily_repo = DailyPrayersRepository(session)
+            for prayer_name, value in dto.as_dict().items():
+                await daily_repo.upsert_pending(
+                    user_id=user.id,
+                    prayer_name=prayer_name,
+                    prayer_date=today,
+                    prayer_time=service.combine(today, value, tz),
+                )
+            await session.commit()
+        except Exception as exc:
+            logger.warning("Could not load exact prayer times for mini app: %s", exc)
+
+        # ── Today's prayer statuses from the same table bot uses ──
         daily_rows = await session.execute(
             select(DailyPrayer.prayer_name, DailyPrayer.status, DailyPrayer.prayer_time)
             .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == today)
         )
         prayers = {}
-        prayer_times = {}
-        tz = user.timezone or "Asia/Tashkent"
         from zoneinfo import ZoneInfo
         for prayer_name, status, prayer_time in daily_rows:
             prayers[prayer_name] = status
-            if prayer_time:
+            if prayer_time and prayer_name not in prayer_times:
                 local_time = prayer_time.astimezone(ZoneInfo(tz))
                 prayer_times[prayer_name] = local_time.strftime("%H:%M")
+                prayer_iso_times[prayer_name] = local_time.isoformat()
+
+        next_prayer = _build_next_prayer(prayer_times, now_tz)
 
         # ── Qazo counts per prayer ──
         qazo_rows = await session.execute(
@@ -195,7 +278,11 @@ async def api_get_data(request: web.Request) -> web.Response:
             "city": user.city or "Toshkent",
             "lang": user.language_code or "uz",
             "prayers": prayers,
-            "prayer_times": prayer_times,   # HH:MM strings from DB
+            "prayer_times": prayer_times,   # HH:MM strings in Asia/Tashkent
+            "prayer_datetimes": prayer_iso_times,
+            "next_prayer": next_prayer,
+            "current_time": now_tz.strftime("%H:%M"),
+            "current_datetime": now_tz.isoformat(),
             "qazo": qazo,
             "stats": {
                 "prayed": prayed_count,
@@ -207,6 +294,8 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "prayer_reminders": reminder.prayer_reminders_enabled if reminder else True,
                 "qazo_reminders": reminder.qazo_reminders_enabled if reminder else True,
             },
+            "today": today.isoformat(),
+            "timezone": TASHKENT_TZ_NAME,
         })
 
 
@@ -276,6 +365,9 @@ async def api_action(request: web.Request) -> web.Response:
                     prayer_date=prayer_date,
                     source="manual",
                 )
+                if prayer_date == tashkent_today():
+                    daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
+                    await DailyPrayersRepository(session).set_status(daily.id, "missed")
                 await session.commit()
                 return web.json_response({"ok": True, "created": created})
 

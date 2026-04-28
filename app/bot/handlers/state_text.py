@@ -20,6 +20,7 @@ from app.bot.keyboards.settings import settings_keyboard
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.states import StatesRepository
 from app.db.repositories.users import UsersRepository
+from app.services.timezone import tashkent_today
 from app.services.i18n import prayer_label, t
 
 router = Router(name="state_text")
@@ -183,7 +184,7 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
         except ValueError:
             await message.answer(t(lang, "error.wrong_date"))
             return
-        if day > date.today():
+        if day > tashkent_today():
             await message.answer(t(lang, "error.future_date"))
             return
         await StatesRepository(session).set(current_user.id, "qazo_add_prayer", {"date": day.isoformat()})
@@ -233,7 +234,7 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
 
     if state.state.startswith("calc_waiting"):
         payload = state.payload or {}
-        today = date.today()
+        today = tashkent_today()
         try:
             if state.state == "calc_waiting_start_date":
                 start = date.fromisoformat(text)

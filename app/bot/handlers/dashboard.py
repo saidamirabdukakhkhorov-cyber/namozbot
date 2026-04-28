@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 from aiogram import F, Router
 from app.bot.filters.text import text_is_one_of
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -13,6 +11,7 @@ from app.db.repositories.daily_prayers import DailyPrayersRepository
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.states import StatesRepository
 from app.services.date_periods import current_month_range
+from app.services.timezone import tashkent_today
 from app.services.i18n import prayer_label, t
 
 router = Router(name="dashboard")
@@ -29,7 +28,7 @@ def dashboard_keyboard(language: str) -> InlineKeyboardMarkup:
 
 async def build_dashboard(user: User, session) -> str:
     lang = user.language_code or "uz"
-    today = date.today()
+    today = tashkent_today()
     daily = {row.prayer_name: row.status for row in await DailyPrayersRepository(session).list_for_date(user.id, today)}
     start, end = current_month_range(today)
     repo = MissedPrayersRepository(session)

@@ -17,6 +17,7 @@ from app.db.session import AsyncSessionLocal
 from app.scheduler.locks import advisory_lock
 from app.services.i18n import prayer_label, t
 from app.services.prayer_times import PrayerTimesService
+from app.services.timezone import tashkent_today
 
 TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
 
@@ -37,7 +38,7 @@ async def ensure_daily_prayers_job() -> None:
 
             for user in users:
                 try:
-                    dto = await service.get_or_fetch(user.city, date.today(), user.timezone)
+                    dto = await service.get_or_fetch(user.city, tashkent_today(), user.timezone)
                 except Exception:
                     continue
 

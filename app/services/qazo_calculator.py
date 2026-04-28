@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.core.constants import PRAYER_NAMES
+from app.services.timezone import tashkent_today
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,7 @@ class QazoCalculatorService:
         return [p for p in PRAYER_NAMES if p in selected_set]
 
     def calculate(self, start_date: date, end_date: date, selected_prayers: list[str]) -> QazoCalculationPreview:
-        today = date.today()
+        today = tashkent_today()
         if start_date > today or end_date > today:
             raise ValueError("Kelajak sanalari bo'yicha qazo hisoblab bo'lmaydi")
         if end_date < start_date:

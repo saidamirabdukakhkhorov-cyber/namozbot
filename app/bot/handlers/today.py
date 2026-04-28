@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 from aiogram import F, Router
 from app.bot.filters.text import text_is_one_of
 from aiogram.filters import Command
@@ -15,6 +13,7 @@ from app.db.repositories.prayer_times import PrayerTimesRepository
 from app.db.repositories.states import StatesRepository
 from app.services.i18n import prayer_label, t
 from app.services.prayer_times import PrayerTimesService
+from app.services.timezone import tashkent_today
 
 router = Router(name="today")
 
@@ -26,7 +25,7 @@ async def build_today_screen(user: User, session) -> tuple[str, object | None]:
 
     service = PrayerTimesService(PrayerTimesRepository(session))
     try:
-        dto = await service.get_or_fetch(user.city, date.today(), user.timezone)
+        dto = await service.get_or_fetch(user.city, tashkent_today(), user.timezone)
     except Exception:
         return t(lang, "error.api_prayer_times"), None
 
