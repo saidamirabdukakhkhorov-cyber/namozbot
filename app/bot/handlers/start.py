@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+from aiogram import F, Router
+from aiogram.filters import CommandStart
+from aiogram.types import CallbackQuery, Message
+from sqlalchemy import update
+
+from app.bot.handlers.dashboard import build_dashboard, dashboard_keyboard
+from app.bot.keyboards.city import city_keyboard
+from app.bot.keyboards.language import language_keyboard, onboarding_continue_keyboard, onboarding_privacy_keyboard, onboarding_reminder_keyboard
+from app.bot.keyboards.main import main_menu_keyboard
+from app.db.models import ReminderSetting, User
+from app.db.repositories.states import StatesRepository
+from app.db.repositories.users import UsersRepository
+from app.services.i18n import t
+
+router = Router(name="start")
+
+
+@router.message(CommandStart())
+async def start(message: Message, current_user: User, session, is_admin: bool):
+    await StatesRepository(session).clear(current_user.id)
+    if not current_user.language_code or not current_user.onboarding_completed:
+        await message.answer(t("uz", "onboarding.choose_language"), reply_markup=language_keyboard())
+        return
+    await message.answer(
+        await build_dashboard(current_user, session),
+        reply_markup=main_menu_keyboard(current_user.language_code, is_admin),
+    )
+
+
+@router.callback_query(F.data.startswith("lang:"))
+async def choose_language(callback: CallbackQuery, current_user: User, session, is_admin: bool):
+    language = (callback.data or "uz").split(":", 1)[1]
+    state = await StatesRepository(session).get(current_user.id)
+
+    await UsersRepository(session).set_language(current_user.id, language)
+
+    if state and state.state == "settings_language":
+        await StatesRepository(session).clear(current_user.id)
+        try:
+            await callback.message.edit_text(t(language, "settings.language.updated"))
+        except Exception:
+            await callback.message.answer(t(language, "settings.language.updated"), reply_markup=main_menu_keyboard(language, is_admin))
+        await callback.answer()
+        return
+
+    await StatesRepository(session).set(current_user.id, "onboarding_intro", {"language": language})
+    await callback.message.edit_text(t(language, "onboarding.intro"), reply_markup=onboarding_continue_keyboard(language))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "onboarding:privacy")
+async def onboarding_privacy(callback: CallbackQuery, current_user: User, session):
+    language = current_user.language_code or "uz"
+    await StatesRepository(session).set(current_user.id, "onboarding_privacy", {})
+    await callback.message.edit_text(t(language, "onboarding.privacy"), reply_markup=onboarding_privacy_keyboard(language))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "onboarding:city")
+async def onboarding_city(callback: CallbackQuery, current_user: User, session):
+    language = current_user.language_code or "uz"
+    await StatesRepository(session).set(current_user.id, "onboarding_city", {})
+    await callback.message.edit_text(t(language, "city.choose"), reply_markup=city_keyboard(language, back_callback="onboarding:privacy"))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("city:"))
+async def choose_city(callback: CallbackQuery, current_user: User, session, is_admin: bool):
+    city = (callback.data or "city:other").split(":", 1)[1]
+    language = current_user.language_code or "uz"
+    state = await StatesRepository(session).get(current_user.id)
+    is_settings_flow = bool(state and state.state == "settings_city")
+
+    if city == "other":
+        await StatesRepository(session).set(
+            current_user.id,
+            "waiting_custom_city",
+            {"source": "settings" if is_settings_flow else "onboarding"},
+        )
+        await callback.message.edit_text(t(language, "city.custom_prompt"))
+        await callback.answer()
+        return
+
+    await UsersRepository(session).set_city(current_user.id, city)
+
+    if is_settings_flow:
+        await StatesRepository(session).clear(current_user.id)
+        try:
+            await callback.message.edit_text(t(language, "settings.city.updated", city=city))
+        except Exception:
+            await callback.message.answer(t(language, "settings.city.updated", city=city), reply_markup=main_menu_keyboard(language, is_admin))
+    else:
+        await StatesRepository(session).set(current_user.id, "onboarding_reminders", {"city": city})
+        await callback.message.edit_text(t(language, "onboarding.reminders"), reply_markup=onboarding_reminder_keyboard(language))
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("onboarding:reminders:"))
+async def onboarding_reminders(callback: CallbackQuery, current_user: User, session, is_admin: bool):
+    language = current_user.language_code or "uz"
+    enabled = callback.data.endswith(":on")
+    await session.execute(
+        update(ReminderSetting)
+        .where(ReminderSetting.user_id == current_user.id)
+        .values(prayer_reminders_enabled=enabled, qazo_reminders_enabled=enabled)
+    )
+    await UsersRepository(session).complete_onboarding(current_user.id)
+    await StatesRepository(session).clear(current_user.id)
+    await callback.message.edit_text(t(language, "onboarding.done", city=current_user.city or "-"))
+    await callback.message.answer(
+        await build_dashboard(current_user, session),
+        reply_markup=main_menu_keyboard(language, is_admin),
+    )
+    await callback.answer()
