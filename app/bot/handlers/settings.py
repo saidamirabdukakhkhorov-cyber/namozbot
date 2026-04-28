@@ -156,7 +156,6 @@ async def _open_settings_from_callback(callback: CallbackQuery, current_user: Us
 
 
 @router.message(Command("settings"))
-@router.message(F.text.func(lambda text: detect_global_menu_action(text) == "settings"))
 async def settings_menu_message(message: Message, current_user: User, session):
     await _open_settings_from_message(message, current_user, session)
 

@@ -14,7 +14,7 @@ router = Router(name="global_menu")
 async def global_menu_handler(
     message: Message,
     global_menu_action: GlobalMenuAction,
-    current_user: User,
+    current_user: User | None,
     session,
     is_admin: bool,
 ):

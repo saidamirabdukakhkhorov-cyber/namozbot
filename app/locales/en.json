@@ -226,5 +226,8 @@
   "error.invalid_action": "Invalid action.",
   "error.not_yours": "This action does not belong to you.",
   "admin.not_allowed": "This section is for admins only.",
-  "admin.title": "🛡 Admin panel"
+  "admin.title": "🛡 Admin panel",
+  "reminder.prayer_time": "🕌 {prayer} time\n\nDid you pray?",
+  "reminder.qazo": "📌 Today's qaza: {prayer}\n\nDid you complete it?",
+  "stats.qazo_count": "{prayer}: {count}"
 }

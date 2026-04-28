@@ -226,5 +226,8 @@
   "error.invalid_action": "Неверное действие.",
   "error.not_yours": "Это действие вам не принадлежит.",
   "admin.not_allowed": "Этот раздел только для администраторов.",
-  "admin.title": "🛡 Панель администратора"
+  "admin.title": "🛡 Панель администратора",
+  "reminder.prayer_time": "🕌 Время {prayer}\n\nВы совершили намаз?",
+  "reminder.qazo": "📌 Каза сегодня: {prayer}\n\nВы исполнили его?",
+  "stats.qazo_count": "{prayer}: {count}"
 }

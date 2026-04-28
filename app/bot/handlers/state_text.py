@@ -72,6 +72,9 @@ def parse_time_list(value: str) -> list[str]:
 async def state_text_handler(message: Message, current_user, session, is_admin: bool):
     # Global Reply Keyboard navigation must work from every wizard state.
     # This fallback catches labels that were not handled by earlier routers.
+    if current_user is None:
+        return
+
     action = detect_global_menu_action(message.text)
     if action:
         await send_global_menu_screen(

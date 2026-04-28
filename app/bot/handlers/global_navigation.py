@@ -25,7 +25,7 @@ async def send_global_menu_screen(
     *,
     message: Message,
     action: GlobalMenuAction,
-    current_user: User,
+    current_user: User | None,
     session,
     is_admin: bool = False,
 ) -> None:
@@ -35,6 +35,8 @@ async def send_global_menu_screen(
     both by the primary global-menu router and by the catch-all text handler so
     that active wizard states cannot swallow menu taps such as "⚙️ Sozlamalar".
     """
+    if current_user is None:
+        return
     lang = user_lang(current_user)
     await StatesRepository(session).clear(current_user.id)
 
@@ -82,7 +84,11 @@ async def send_global_menu_screen(
     if action == "settings":
         from app.bot.handlers.settings import render_settings
 
-        await message.answer(await render_settings(current_user, session), reply_markup=settings_keyboard(lang))
+        try:
+            text = await render_settings(current_user, session)
+        except Exception:
+            text = t(lang, "settings.title")
+        await message.answer(text, reply_markup=settings_keyboard(lang))
         return
 
     if action == "help":

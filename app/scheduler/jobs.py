@@ -13,7 +13,7 @@ from app.db.repositories.prayer_times import PrayerTimesRepository
 from app.db.repositories.reminders import RemindersRepository
 from app.db.session import AsyncSessionLocal
 from app.scheduler.locks import advisory_lock
-from app.services.i18n import prayer_label
+from app.services.i18n import prayer_label, t
 from app.services.prayer_times import PrayerTimesService
 
 
@@ -97,9 +97,14 @@ async def send_due_prayer_reminders_job(bot: Bot) -> None:
                     continue
 
                 try:
+                    reminder_text = t(
+                        user.language_code,
+                        "reminder.prayer_time",
+                        prayer=prayer_label(user.language_code, daily.prayer_name),
+                    )
                     await bot.send_message(
                         user.telegram_id,
-                        f"🕌 {prayer_label(user.language_code, daily.prayer_name)} vaqti kirdi\n\nNamozni o'qidingizmi?",
+                        reminder_text,
                         reply_markup=prayer_status_keyboard(user.language_code, daily.id),
                     )
                     await reminders.mark_sent(log.id)

@@ -43,7 +43,7 @@ async def render_stats(user: User, session, *, key: str = "this_month") -> str:
         t(lang, "stats.qazo_breakdown"),
     ]
     for p in PRAYER_NAMES:
-        lines.append(f"{prayer_label(lang, p)}: {qazo_counts.get(p, 0)} ta")
+        lines.append(t(lang, "stats.qazo_count", prayer=prayer_label(lang, p), count=qazo_counts.get(p, 0)))
     return "\n".join(lines)
 
 
