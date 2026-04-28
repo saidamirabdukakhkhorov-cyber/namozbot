@@ -160,8 +160,16 @@ async def render_settings(user: User, session, *, notice: str | None = None) -> 
 async def _edit_or_answer(callback: CallbackQuery, text: str, reply_markup=None) -> None:
     if not callback.message:
         return
+
+    # Settings can be opened from a normal text message or from a media/caption
+    # message. edit_text fails for media messages, so use edit_caption there.
     try:
-        await callback.message.edit_text(text, reply_markup=reply_markup)
+        if getattr(callback.message, "text", None) is not None:
+            await callback.message.edit_text(text, reply_markup=reply_markup)
+        elif getattr(callback.message, "caption", None) is not None:
+            await callback.message.edit_caption(caption=text, reply_markup=reply_markup)
+        else:
+            await callback.message.edit_text(text, reply_markup=reply_markup)
     except Exception:
         await callback.message.answer(text, reply_markup=reply_markup)
 
