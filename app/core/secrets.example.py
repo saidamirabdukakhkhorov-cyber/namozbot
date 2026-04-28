@@ -6,3 +6,6 @@ DEFAULT_TIMEZONE = "Asia/Tashkent"
 PRAYER_API_BASE_URL = "https://islomapi.uz"
 LOG_LEVEL = "INFO"
 ENVIRONMENT = "local"
+
+WEBAPP_URL = "https://your-domain.com"  # Mini App URL (must be HTTPS)
+WEBAPP_PORT = "8080"

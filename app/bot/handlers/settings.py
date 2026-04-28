@@ -97,9 +97,19 @@ async def get_or_create_reminder_setting(user: User, session) -> ReminderSetting
     reminder = await session.scalar(select(ReminderSetting).where(ReminderSetting.user_id == user.id))
     if reminder:
         return reminder
-    reminder = ReminderSetting(user_id=user.id)
+    reminder = ReminderSetting(
+        user_id=user.id,
+        prayer_reminders_enabled=True,
+        qazo_reminders_enabled=True,
+        qazo_reminder_times=["08:00", "21:00"],
+        daily_qazo_limit=1,
+        quiet_hours_enabled=True,
+        quiet_hours_start=time(23, 0),
+        quiet_hours_end=time(6, 0),
+    )
     session.add(reminder)
     await session.flush()
+    await session.refresh(reminder)
     return reminder
 
 
@@ -163,36 +173,38 @@ async def settings_menu_message(message: Message, current_user: User, session):
 @router.callback_query(F.data == "settings:open")
 @router.callback_query(F.data == "settings:cancel")
 async def settings_open(callback: CallbackQuery, current_user: User, session):
-    await _open_settings_from_callback(callback, current_user, session)
     await callback.answer()
+    await _open_settings_from_callback(callback, current_user, session)
 
 
 @router.callback_query(F.data == "settings:language")
 async def settings_language(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).clear(current_user.id)
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.language.choose"), settings_language_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("settings:set_language:"))
 async def settings_set_language(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     language = (callback.data or "").rsplit(":", 1)[-1]
     if language not in SUPPORTED_LANGUAGES:
         language = "uz"
     await UsersRepository(session).set_language(current_user.id, language)
     current_user.language_code = language
+    await callback.answer()
     await _open_settings_from_callback(
         callback,
         current_user,
         session,
         notice=t(language, "settings.language.updated"),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:city")
 async def settings_city(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).clear(current_user.id)
     lang = _lang(current_user)
     await _edit_or_answer(
@@ -200,15 +212,15 @@ async def settings_city(callback: CallbackQuery, current_user: User, session):
         t(lang, "settings.city.choose", city=current_user.city or "-"),
         settings_city_keyboard(lang),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("settings:set_city:"))
 async def settings_set_city(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     city = (callback.data or "").split(":", 2)[2].strip()
     lang = _lang(current_user)
     if not city:
-        await callback.answer(t(lang, "settings.city.invalid"), show_alert=True)
+        await _edit_or_answer(callback, t(lang, "settings.city.invalid"), settings_back_keyboard(lang))
         return
     await UsersRepository(session).set_city(current_user.id, city)
     current_user.city = city
@@ -218,19 +230,19 @@ async def settings_set_city(callback: CallbackQuery, current_user: User, session
         session,
         notice=t(lang, "settings.city.updated", city=city),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:city_custom")
 async def settings_city_custom(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).set(current_user.id, "settings_input_city", {})
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.city.custom_prompt"), settings_back_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:prayer_reminders")
 async def settings_toggle_prayer_reminders(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     reminder = await get_or_create_reminder_setting(current_user, session)
     reminder.prayer_reminders_enabled = not reminder.prayer_reminders_enabled
     lang = _lang(current_user)
@@ -240,11 +252,11 @@ async def settings_toggle_prayer_reminders(callback: CallbackQuery, current_user
         session,
         notice=t(lang, "settings.prayer_reminders.updated", status=_status(lang, reminder.prayer_reminders_enabled)),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:qazo_reminders")
 async def settings_toggle_qazo_reminders(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     reminder = await get_or_create_reminder_setting(current_user, session)
     reminder.qazo_reminders_enabled = not reminder.qazo_reminders_enabled
     lang = _lang(current_user)
@@ -254,34 +266,34 @@ async def settings_toggle_qazo_reminders(callback: CallbackQuery, current_user: 
         session,
         notice=t(lang, "settings.qazo_reminders.updated", status=_status(lang, reminder.qazo_reminders_enabled)),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:qazo_times")
 async def settings_qazo_times(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).set(current_user.id, "settings_input_qazo_times", {})
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.qazo_times.prompt"), settings_back_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:daily_limit")
 async def settings_daily_limit(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).clear(current_user.id)
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.daily_limit.choose"), settings_daily_limit_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("settings:set_daily_limit:"))
 async def settings_set_daily_limit(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     lang = _lang(current_user)
     try:
         count = int((callback.data or "").rsplit(":", 1)[-1])
         if count < 1 or count > 10:
             raise ValueError
     except ValueError:
-        await callback.answer(t(lang, "settings.daily_limit.invalid"), show_alert=True)
+        await _edit_or_answer(callback, t(lang, "settings.daily_limit.invalid"), settings_back_keyboard(lang))
         return
     reminder = await get_or_create_reminder_setting(current_user, session)
     reminder.daily_qazo_limit = count
@@ -291,31 +303,30 @@ async def settings_set_daily_limit(callback: CallbackQuery, current_user: User, 
         session,
         notice=t(lang, "settings.daily_limit.updated", count=count),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:daily_limit_custom")
 async def settings_daily_limit_custom(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).set(current_user.id, "settings_input_daily_limit", {})
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.daily_limit.prompt"), settings_back_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:quiet_hours")
 async def settings_quiet_hours(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).set(current_user.id, "settings_input_quiet_hours", {})
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "settings.quiet_hours.prompt"), settings_back_keyboard(lang))
-    await callback.answer()
 
 
 @router.callback_query(F.data == "settings:privacy")
 async def settings_privacy(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     await StatesRepository(session).clear(current_user.id)
     lang = _lang(current_user)
     await _edit_or_answer(callback, t(lang, "privacy.text"), settings_back_keyboard(lang))
-    await callback.answer()
 
 
 @router.message(SettingsInputStateFilter(*SETTINGS_INPUT_STATES))
@@ -409,6 +420,6 @@ async def settings_text_input(message: Message, current_user: User, session, set
 
 @router.callback_query(F.data.startswith("settings:"))
 async def settings_unknown(callback: CallbackQuery, current_user: User, session):
+    await callback.answer()
     lang = _lang(current_user)
     await _open_settings_from_callback(callback, current_user, session, notice=t(lang, "settings.unknown"))
-    await callback.answer()

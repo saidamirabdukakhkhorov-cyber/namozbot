@@ -127,6 +127,9 @@ class Settings:
     prayer_api_country: str
     prayer_api_method: str
     prayer_api_school: str
+    webapp_url: str
+    webapp_host: str
+    webapp_port: int
     log_level: str
     environment: str
 
@@ -172,6 +175,9 @@ def get_settings() -> Settings:
         prayer_api_country=_get("PRAYER_API_COUNTRY", "Uzbekistan") or "Uzbekistan",
         prayer_api_method=_get("PRAYER_API_METHOD", ""),
         prayer_api_school=_get("PRAYER_API_SCHOOL", ""),
+        webapp_url=_get("WEBAPP_URL", "") or "",
+        webapp_host=_get("WEBAPP_HOST", "0.0.0.0") or "0.0.0.0",
+        webapp_port=int(_get("WEBAPP_PORT", "8080") or "8080"),
         log_level=_get("LOG_LEVEL", "INFO") or "INFO",
         environment=env,
     )
