@@ -216,5 +216,13 @@
   "settings.quiet_hours.prompt": "🌙 Quiet hours\n\nEnter the period in HH:MM-HH:MM format.\n\nExample:\n23:00-06:00",
   "settings.quiet_hours.invalid": "Invalid quiet hours format.\n\nPlease use HH:MM-HH:MM format.\n\nExample:\n23:00-06:00",
   "settings.quiet_hours.updated": "✅ Quiet hours updated: {start} — {end}",
-  "settings.unknown": "This settings section is not available yet."
+  "settings.unknown": "This settings section is not available yet.",
+  "settings.action.daily_limit": "🔢 Daily limit",
+  "settings.action.custom_number": "Custom number",
+  "settings.city.custom_prompt": "🏙 Type your city name\n\nExample:\nSamarkand",
+  "settings.city.invalid": "The city name is invalid. Please type a city name.",
+  "settings.daily_limit.choose": "🔢 Daily missed-prayer reminder limit\n\nHow many missed-prayer reminders should be sent per day?",
+  "settings.daily_limit.prompt": "🔢 Daily limit\n\nEnter a number from 1 to 10.\n\nExample:\n2",
+  "settings.daily_limit.invalid": "Please enter a number from 1 to 10.\n\nExample:\n2",
+  "settings.daily_limit.updated": "✅ Daily missed-prayer reminder limit updated: {count}"
 }

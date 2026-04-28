@@ -112,3 +112,21 @@
 - Qazo reminder times can be updated from Settings with `HH:MM, HH:MM` input.
 - Quiet hours can be updated from Settings with `HH:MM-HH:MM` input.
 - Unknown settings callbacks return the settings screen instead of dead-ending.
+
+## Fix5 — Settings module rewritten from scratch
+
+- Rewrote `app/bot/handlers/settings.py` as a self-contained settings flow.
+- Settings no longer reuses onboarding `lang:*` and `city:*` callbacks; it now uses settings-scoped callbacks such as `settings:set_language:*` and `settings:set_city:*`.
+- Added a dedicated settings input-state filter so settings text inputs do not swallow other bot flows.
+- Added robust settings actions:
+  - language selection
+  - city selection and custom city input
+  - prayer reminder toggle
+  - qazo reminder toggle
+  - qazo reminder times input
+  - daily qazo reminder limit
+  - quiet hours input
+  - privacy screen
+- Added settings-specific keyboards in `app/bot/keyboards/settings.py`.
+- Added missing translation keys for daily limit and custom city states in Uzbek, Russian, and English.
+- Kept database schema unchanged; no migration is required for this fix.

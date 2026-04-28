@@ -216,5 +216,13 @@
   "settings.quiet_hours.prompt": "🌙 Тихие часы\n\nВведите период в формате HH:MM-HH:MM.\n\nНапример:\n23:00-06:00",
   "settings.quiet_hours.invalid": "Неверный формат тихих часов.\n\nВведите в формате HH:MM-HH:MM.\n\nНапример:\n23:00-06:00",
   "settings.quiet_hours.updated": "✅ Тихие часы обновлены: {start} — {end}",
-  "settings.unknown": "Этот раздел настроек пока недоступен."
+  "settings.unknown": "Этот раздел настроек пока недоступен.",
+  "settings.action.daily_limit": "🔢 Дневной лимит",
+  "settings.action.custom_number": "Другое число",
+  "settings.city.custom_prompt": "🏙 Напишите название города\n\nНапример:\nСамарканд",
+  "settings.city.invalid": "Название города указано неверно. Пожалуйста, напишите название города.",
+  "settings.daily_limit.choose": "🔢 Дневной лимит напоминаний о каза\n\nСколько напоминаний о каза отправлять в день?",
+  "settings.daily_limit.prompt": "🔢 Дневной лимит\n\nВведите число от 1 до 10.\n\nНапример:\n2",
+  "settings.daily_limit.invalid": "Пожалуйста, введите число от 1 до 10.\n\nНапример:\n2",
+  "settings.daily_limit.updated": "✅ Дневной лимит обновлён: {count}"
 }

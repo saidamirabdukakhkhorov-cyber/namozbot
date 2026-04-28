@@ -216,5 +216,13 @@
   "settings.quiet_hours.prompt": "🌙 Sokin vaqt\n\nSokin vaqt oralig‘ini HH:MM-HH:MM formatida yozing.\n\nMasalan:\n23:00-06:00",
   "settings.quiet_hours.invalid": "Sokin vaqt formati noto‘g‘ri.\n\nIltimos, HH:MM-HH:MM formatida yozing.\n\nMasalan:\n23:00-06:00",
   "settings.quiet_hours.updated": "✅ Sokin vaqt yangilandi: {start} — {end}",
-  "settings.unknown": "Bu sozlama hozircha mavjud emas."
+  "settings.unknown": "Bu sozlama hozircha mavjud emas.",
+  "settings.action.daily_limit": "🔢 Kunlik limit",
+  "settings.action.custom_number": "Boshqa son",
+  "settings.city.custom_prompt": "🏙 Shahar nomini yozing\n\nMasalan:\nSamarqand",
+  "settings.city.invalid": "Shahar nomi noto‘g‘ri. Iltimos, shahar nomini yozing.",
+  "settings.daily_limit.choose": "🔢 Kunlik qazo eslatma limiti\n\nKuniga nechta qazo eslatma yuborilsin?",
+  "settings.daily_limit.prompt": "🔢 Kunlik limit\n\n1 dan 10 gacha son yozing.\n\nMasalan:\n2",
+  "settings.daily_limit.invalid": "Iltimos, 1 dan 10 gacha son kiriting.\n\nMasalan:\n2",
+  "settings.daily_limit.updated": "✅ Kunlik qazo eslatma limiti yangilandi: {count} ta"
 }
