@@ -1,10 +1,11 @@
 from aiogram import Dispatcher
-from app.bot.handlers import admin, dashboard, prayer, privacy, qazo, qazo_calculator, settings, start, state_text, stats, today
+from app.bot.handlers import admin, dashboard, global_menu, prayer, privacy, qazo, qazo_calculator, settings, start, state_text, stats, today
 
 
 def register_handlers(dp: Dispatcher) -> None:
     for router in [
         start.router,
+        global_menu.router,
         dashboard.router,
         today.router,
         prayer.router,
