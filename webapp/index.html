@@ -318,7 +318,7 @@ const PRAYERS = [
   {key:'maghrib',name:'Shom'},
   {key:'isha',   name:'Xufton'},
 ];
-const CITIES = ["Toshkent","Samarqand","Buxoro","Andijon","Farg'ona","Namangan","Qarshi","Nukus"];
+const CITIES = ["Toshkent","Samarqand","Buxoro","Andijon","Farg\u02BBona","Namangan","Qarshi","Nukus"];
 const LANGS  = [{c:'uz',n:"O'zbekcha"},{c:'ru',n:'Русский'},{c:'en',n:'English'}];
 
 // ─── STATE (from server) ───
@@ -451,14 +451,11 @@ function renderQazo() {
   if (!loaded) return;
   document.getElementById('qazo-list').innerHTML = PRAYERS.map(p => {
     const n = D.qazo[p.key] || 0;
-    return `<div class="qrow">
+    return `<div class="qrow" onclick="openQazoModal('${p.key}')" style="cursor:pointer">
       <span class="qname">${p.name}</span>
       <div class="qright">
         <span class="qnum" style="color:${n>0?'#e07b20':'#2d8a62'}">${n}</span>
-        ${n > 0
-          ? `<button class="qbtn done" onclick="markQazoDone('${p.key}')">✓</button>`
-          : `<button class="qbtn" onclick="addQazoToday('${p.key}')">+</button>`
-        }
+        <span style="color:var(--muted);font-size:18px;font-weight:300">›</span>
       </div>
     </div>`;
   }).join('');
@@ -572,10 +569,15 @@ function openCityPicker() {
   document.getElementById('modal-body').innerHTML = `
     <div class="mtitle">Shaharni tanlang</div>
     <div class="mactions" style="margin-top:8px">
-      ${CITIES.map(c=>`<button class="mbtn ${D.city===c?'p':'s'}" onclick="setCity('${c}')">${c}</button>`).join('')}
+      ${CITIES.map((c,i)=>`<button class="mbtn ${D.city===c?'p':'s'}" data-city-idx="${i}" onclick="setCityByIdx(this)">${c}</button>`).join('')}
       <button class="mbtn c" onclick="closeModal()">Bekor qilish</button>
     </div>`;
   openModal();
+}
+function setCityByIdx(btn) {
+  const idx = parseInt(btn.getAttribute('data-city-idx'));
+  const city = CITIES[idx];
+  if (city) setCity(city);
 }
 async function setCity(city) {
   D.city = city; renderHeader(); renderSettings();
@@ -599,32 +601,102 @@ async function setPrayerStatus(key, status) {
   await postAction({action:'set_prayer_status', prayer:key, status});
 }
 
-// ─── QAZO DONE ───
-async function markQazoDone(key) {
-  if ((D.qazo[key]||0) <= 0) return;
-  const res = await postAction({action:'complete_qazo', prayer:key, count:1});
+// ─── QAZO MODAL ───
+function openQazoModal(key) {
+  const p = PRAYERS.find(x => x.key === key);
+  const n = D.qazo[key] || 0;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="mtitle">${p.name}</div>
+    <div class="msub">Active qazo: <strong>${n}</strong> ta</div>
+    <div class="mactions">
+      ${n > 0 ? `
+        <button class="mbtn p" onclick="confirmMarkDone('${key}', 1)">✓ 1 ta ado qildim</button>
+        ${n >= 3 ? `<button class="mbtn s" onclick="confirmMarkDone('${key}', 3)">✓ 3 ta ado qildim</button>` : ''}
+        ${n >= 5 ? `<button class="mbtn s" onclick="confirmMarkDone('${key}', 5)">✓ 5 ta ado qildim</button>` : ''}
+        <button class="mbtn s" onclick="openCustomCount('${key}')">Boshqa son...</button>
+      ` : ''}
+      <button class="mbtn d" onclick="openAddQazoFor('${key}')">+ Qazo qo'shish</button>
+      <button class="mbtn c" onclick="closeModal()">Yopish</button>
+    </div>`;
+  openModal();
+}
+
+function openCustomCount(key) {
+  const p = PRAYERS.find(x => x.key === key);
+  const max = D.qazo[key] || 1;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="mtitle">${p.name} — nechta?</div>
+    <div class="msub">Maksimum: ${max} ta</div>
+    <div class="mactions">
+      <input type="number" class="di" id="custom-count" min="1" max="${max}" value="1"
+        style="margin-bottom:12px;font-size:18px;text-align:center">
+      <button class="mbtn p" onclick="submitCustomCount('${key}')">✓ Tasdiqlash</button>
+      <button class="mbtn c" onclick="openQazoModal('${key}')">◀ Ortga</button>
+    </div>`;
+  openModal();
+  setTimeout(() => document.getElementById('custom-count')?.focus(), 100);
+}
+
+async function submitCustomCount(key) {
+  const input = document.getElementById('custom-count');
+  const count = parseInt(input?.value || '1');
+  const max = D.qazo[key] || 0;
+  if (!count || count < 1 || count > max) {
+    showToast('Noto\'g\'ri son');
+    return;
+  }
+  await doMarkDone(key, count);
+}
+
+async function confirmMarkDone(key, count) {
+  await doMarkDone(key, count);
+}
+
+async function doMarkDone(key, count) {
+  closeModal();
+  const res = await postAction({action:'complete_qazo', prayer:key, count});
   if (res.ok) {
-    D.qazo[key]--;
-    D.stats.active = Math.max(0, (D.stats.active||0) - 1);
-    D.stats.completed = (D.stats.completed||0) + 1;
+    D.qazo[key] = Math.max(0, (D.qazo[key]||0) - (res.completed || count));
+    D.stats.active = Math.max(0, (D.stats.active||0) - (res.completed || count));
+    D.stats.completed = (D.stats.completed||0) + (res.completed || count);
     renderQazo(); renderStats();
-    showToast('✓ 1 ta qazo ado qilindi');
-  } else if (res.error === 'no active qazo') {
-    showToast('Active qazo yo\'q');
-    D.qazo[key] = 0; renderQazo();
+    showToast(`✓ ${res.completed || count} ta qazo ado qilindi`);
   } else {
     showToast('Xato yuz berdi');
+    await loadData();
   }
 }
 
-async function addQazoToday(key) {
+function openAddQazoFor(key) {
+  const p = PRAYERS.find(x => x.key === key);
   const today = new Date().toISOString().split('T')[0];
-  const res = await postAction({action:'add_qazo', prayer:key, date:today});
-  if (res.ok && res.created !== false) {
-    D.qazo[key] = (D.qazo[key]||0) + 1;
-    D.stats.active = (D.stats.active||0) + 1;
-    renderQazo(); renderStats();
-    showToast("+ Qazo qo'shildi");
+  document.getElementById('modal-body').innerHTML = `
+    <div class="mtitle">${p.name} — qazo qo'shish</div>
+    <div class="msub">Qaysi sana?</div>
+    <div class="mactions">
+      <label class="flbl">Sana</label>
+      <input type="date" class="di" id="qazo-dt-${key}" value="${today}" max="${today}" style="margin-bottom:12px">
+      <button class="mbtn p" onclick="submitAddQazoFor('${key}')">+ Qo'shish</button>
+      <button class="mbtn c" onclick="openQazoModal('${key}')">◀ Ortga</button>
+    </div>`;
+  openModal();
+}
+
+async function submitAddQazoFor(key) {
+  const dt = document.getElementById('qazo-dt-'+key)?.value || new Date().toISOString().split('T')[0];
+  const res = await postAction({action:'add_qazo', prayer:key, date:dt});
+  if (res.ok) {
+    if (res.created !== false) {
+      D.qazo[key] = (D.qazo[key]||0) + 1;
+      D.stats.active = (D.stats.active||0) + 1;
+      renderQazo(); renderStats();
+      showToast("✓ Qazo qo'shildi");
+    } else {
+      showToast('Bu qazo allaqachon bor');
+    }
+    closeModal();
+  } else {
+    showToast('Xato yuz berdi');
   }
 }
 
