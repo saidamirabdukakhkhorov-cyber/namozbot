@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import asyncio
 from datetime import time
 from typing import Any, TypeVar
 
 from aiogram import F, Router
 from aiogram.filters import BaseFilter, Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy import select
 
 from app.bot.filters.text import detect_global_menu_action
+from app.bot.keyboards.main import main_menu_keyboard
 from app.bot.keyboards.settings import (
     settings_back_keyboard,
     settings_city_keyboard,
@@ -174,6 +176,15 @@ async def _edit_or_answer(callback: CallbackQuery, text: str, reply_markup=None)
         await callback.message.answer(text, reply_markup=reply_markup)
 
 
+async def refresh_reply_main_menu(message: Message | None, language: str, is_admin: bool) -> None:
+    """Force Telegram to replace the cached Reply Keyboard after language change."""
+    if not message:
+        return
+    await message.answer(t(language, "settings.language.updated"), reply_markup=ReplyKeyboardRemove())
+    await asyncio.sleep(0.15)
+    await message.answer(t(language, "menu.home"), reply_markup=main_menu_keyboard(language, is_admin))
+
+
 async def _open_settings_message(message: Message, current_user: User, session, *, notice: str | None = None) -> None:
     await StatesRepository(session).clear(current_user.id)
     lang = _lang(current_user)
@@ -262,7 +273,7 @@ async def settings_language(callback: CallbackQuery, current_user: User, session
 
 
 @router.callback_query(F.data.startswith("settings:set_language:"))
-async def settings_set_language(callback: CallbackQuery, current_user: User, session):
+async def settings_set_language(callback: CallbackQuery, current_user: User, session, is_admin: bool):
     await callback.answer()
     language = (callback.data or "").rsplit(":", 1)[-1]
     if language not in SUPPORTED_LANGUAGES:
@@ -270,12 +281,17 @@ async def settings_set_language(callback: CallbackQuery, current_user: User, ses
 
     await UsersRepository(session).set_language(current_user.id, language)
     current_user.language_code = language
+
+    # Telegram clients cache persistent Reply Keyboards. The settings message
+    # can be edited in the new language, but the bottom menu remains in the
+    # previous language unless it is explicitly removed and sent again.
     await _open_settings_callback(
         callback,
         current_user,
         session,
         notice=t(language, "settings.language.updated"),
     )
+    await refresh_reply_main_menu(callback.message, language, is_admin)
 
 
 @router.callback_query(F.data == "settings:city")

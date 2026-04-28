@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import F, Router
 from aiogram.filters import CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy import update
 
 from app.bot.handlers.dashboard import build_dashboard, dashboard_keyboard
@@ -41,7 +43,10 @@ async def choose_language(callback: CallbackQuery, current_user: User, session, 
         try:
             await callback.message.edit_text(t(language, "settings.language.updated"))
         except Exception:
-            await callback.message.answer(t(language, "settings.language.updated"), reply_markup=main_menu_keyboard(language, is_admin))
+            await callback.message.answer(t(language, "settings.language.updated"))
+        await callback.message.answer(t(language, "settings.language.updated"), reply_markup=ReplyKeyboardRemove())
+        await asyncio.sleep(0.15)
+        await callback.message.answer(t(language, "menu.home"), reply_markup=main_menu_keyboard(language, is_admin))
         await callback.answer()
         return
 
