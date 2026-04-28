@@ -209,6 +209,16 @@ async def api_get_data(request: web.Request) -> web.Response:
         now_tz = tashkent_now()
         tz = TASHKENT_TZ_NAME
         city = user.city or "Toshkent"
+        selected_day = today
+        raw_selected_day = body.get("date")
+        if raw_selected_day:
+            try:
+                selected_day = date.fromisoformat(str(raw_selected_day))
+            except ValueError:
+                selected_day = today
+        if selected_day > today:
+            selected_day = today
+        is_today = selected_day == today
 
         # ── Authoritative prayer times for Mini App and bot sync ──
         prayer_times: dict[str, str] = {}
@@ -217,24 +227,24 @@ async def api_get_data(request: web.Request) -> web.Response:
         minutes_until: dict[str, int | None] = {}
         try:
             service = PrayerTimesService(PrayerTimesRepository(session))
-            dto = await service.get_or_fetch(city, today, tz)
+            dto = await service.get_or_fetch(city, selected_day, tz)
             for name, value in dto.as_dict().items():
                 prayer_times[name] = value.strftime("%H:%M")
-                prayer_iso_times[name] = _time_to_local_iso(today, value, tz)
+                prayer_iso_times[name] = _time_to_local_iso(selected_day, value, tz)
 
             sunrise = _extract_sunrise_time(dto.raw_payload)
             if sunrise:
                 prayer_times["sunrise"] = sunrise.strftime("%H:%M")
-                prayer_iso_times["sunrise"] = _time_to_local_iso(today, sunrise, tz)
+                prayer_iso_times["sunrise"] = _time_to_local_iso(selected_day, sunrise, tz)
 
-            # Opening the Mini App ensures today's rows exist in the same table the bot reads.
+            # Opening the Mini App ensures selected-day rows exist in the same table the bot reads.
             daily_repo = DailyPrayersRepository(session)
             for prayer_name, value in dto.as_dict().items():
                 await daily_repo.upsert_pending(
                     user_id=user.id,
                     prayer_name=prayer_name,
-                    prayer_date=today,
-                    prayer_time=service.combine(today, value, tz),
+                    prayer_date=selected_day,
+                    prayer_time=service.combine(selected_day, value, tz),
                 )
             await session.commit()
         except Exception as exc:
@@ -243,7 +253,7 @@ async def api_get_data(request: web.Request) -> web.Response:
         # ── Today's prayer statuses from the same table bot uses ──
         daily_rows = await session.execute(
             select(DailyPrayer.prayer_name, DailyPrayer.status, DailyPrayer.prayer_time)
-            .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == today)
+            .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == selected_day)
         )
         prayers = {}
         from zoneinfo import ZoneInfo
@@ -253,10 +263,10 @@ async def api_get_data(request: web.Request) -> web.Response:
                 local_time = prayer_time.astimezone(ZoneInfo(tz))
                 prayer_times[prayer_name] = local_time.strftime("%H:%M")
                 prayer_iso_times[prayer_name] = local_time.isoformat()
-            can_mark[prayer_name] = _is_prayer_due(prayer_time, now_tz)
-            minutes_until[prayer_name] = _minutes_until(prayer_time, now_tz)
+            can_mark[prayer_name] = (not is_today) or _is_prayer_due(prayer_time, now_tz)
+            minutes_until[prayer_name] = _minutes_until(prayer_time, now_tz) if is_today else 0
 
-        next_prayer = _build_next_prayer(prayer_times, now_tz)
+        next_prayer = _build_next_prayer(prayer_times, now_tz) if is_today else None
 
         # ── Qazo counts per prayer ──
         qazo_rows = await session.execute(
@@ -324,6 +334,8 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "qazo_reminders": reminder.qazo_reminders_enabled if reminder else True,
             },
             "today": today.isoformat(),
+            "selected_date": selected_day.isoformat(),
+            "is_today": is_today,
             "timezone": TASHKENT_TZ_NAME,
         })
 
@@ -425,7 +437,16 @@ async def api_action(request: web.Request) -> web.Response:
                 return web.json_response({"error": "invalid params"}, status=400)
 
             today = tashkent_today()
-            daily = await ensure_daily_prayer_row(session, user, prayer, today)
+            raw_date = body.get("date", today.isoformat())
+            try:
+                prayer_date = date.fromisoformat(str(raw_date))
+            except ValueError:
+                prayer_date = today
+            if prayer_date > today:
+                return web.json_response({"error": "future_date", "message": "Kelajakdagi kunni belgilab bo‘lmaydi"}, status=400)
+            daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
+            if prayer_date == today and status in ("prayed", "missed") and not _is_prayer_due(daily.prayer_time, tashkent_now()):
+                return web.json_response({"error": "future_prayer", "message": "Bu namoz vaqti hali kirmagan"}, status=400)
 
             repo = DailyPrayersRepository(session)
             await repo.set_status(daily.id, status)
@@ -435,7 +456,7 @@ async def api_action(request: web.Request) -> web.Response:
                 await missed_repo.create(
                     user_id=user.id,
                     prayer_name=prayer,
-                    prayer_date=today,
+                    prayer_date=prayer_date,
                     source="daily_confirmation",
                     daily_prayer_id=daily.id,
                 )
@@ -446,7 +467,7 @@ async def api_action(request: web.Request) -> web.Response:
                     delete(MissedPrayer).where(
                         MissedPrayer.user_id == user.id,
                         MissedPrayer.prayer_name == prayer,
-                        MissedPrayer.prayer_date == today,
+                        MissedPrayer.prayer_date == prayer_date,
                         MissedPrayer.status == "active",
                         MissedPrayer.source == "daily_confirmation",
                     )
