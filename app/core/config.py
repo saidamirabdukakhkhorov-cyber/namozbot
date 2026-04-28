@@ -177,7 +177,7 @@ def get_settings() -> Settings:
         prayer_api_school=_get("PRAYER_API_SCHOOL", ""),
         webapp_url=_get("WEBAPP_URL", "") or "",
         webapp_host=_get("WEBAPP_HOST", "0.0.0.0") or "0.0.0.0",
-        webapp_port=int(_get("WEBAPP_PORT", "8080") or "8080"),
+        webapp_port=int(_get("PORT") or _get("WEBAPP_PORT", "8080") or "8080"),
         log_level=_get("LOG_LEVEL", "INFO") or "INFO",
         environment=env,
     )
