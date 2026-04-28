@@ -32,19 +32,14 @@ GlobalMenuAction = Literal[
 
 
 def normalize_button_text(value: str | None) -> str:
-    """Normalize Telegram button text for reliable Reply Keyboard matching.
-
-    Telegram clients may send emoji buttons with/without variation selectors
-    (for example, "⚙️ Sozlamalar" vs "⚙ Sozlamalar"). Some keyboards may
-    also include typographic apostrophes. Normalizing text keeps global
-    navigation reliable across Telegram clients and platforms.
-    """
+    """Normalize Telegram button text for reliable Reply Keyboard matching."""
     text = value or ""
     for marker in _VARIATION_SELECTORS | _ZERO_WIDTH:
         text = text.replace(marker, "")
     for src, dst in _APOSTROPHES.items():
         text = text.replace(src, dst)
-    return " ".join(text.strip().split()).casefold()
+    text = " ".join(text.strip().split())
+    return text.casefold()
 
 
 def _without_leading_icon(value: str) -> str:
@@ -55,7 +50,10 @@ def _without_leading_icon(value: str) -> str:
 def text_is_one_of(*values: str):
     expected = {normalize_button_text(value) for value in values}
     expected |= {_without_leading_icon(value) for value in expected}
-    return F.text.func(lambda text: normalize_button_text(text) in expected or _without_leading_icon(normalize_button_text(text)) in expected)
+    return F.text.func(
+        lambda text: normalize_button_text(text) in expected
+        or _without_leading_icon(normalize_button_text(text)) in expected
+    )
 
 
 _GLOBAL_MENU_ALIASES: dict[GlobalMenuAction, set[str]] = {
@@ -116,19 +114,42 @@ _GLOBAL_MENU_ALIASES: dict[GlobalMenuAction, set[str]] = {
     },
 }
 
+# Loose keywords are a last-resort guard for Telegram client quirks, copied text,
+# or old keyboards. They intentionally include only top-level menu labels.
+_GLOBAL_MENU_KEYWORDS: dict[GlobalMenuAction, tuple[str, ...]] = {
+    "home": ("asosiy menu", "главное меню", "main menu"),
+    "today": ("bugungi namoz", "намазы на сегодня", "today"),
+    "qazo_add": ("qazo qo'sh", "добавить каза", "add missed"),
+    "qazo": ("qazo namoz", "мои каза", "missed prayers"),
+    "calculator": ("qazo kalkulyator", "калькулятор каза", "calculator"),
+    "stats": ("statistika", "статистика", "statistics"),
+    "settings": ("sozlamalar", "настройки", "settings"),
+    "help": ("yordam", "помощь", "help"),
+    "admin": ("admin panel", "админ панель"),
+}
+
 
 def detect_global_menu_action(value: str | None) -> GlobalMenuAction | None:
     normalized = normalize_button_text(value)
     plain = _without_leading_icon(normalized)
     candidates = {normalized, plain}
+
     for action, aliases in _GLOBAL_MENU_ALIASES.items():
         if candidates & aliases:
             return action
+
+    # Last-resort loose matching. This is what prevents a menu tap from being
+    # swallowed by active state handlers if Telegram sends an unexpected icon or
+    # extra whitespace/punctuation around the label.
+    for action, keywords in _GLOBAL_MENU_KEYWORDS.items():
+        if any(keyword in plain for keyword in keywords):
+            return action
+
     return None
 
 
 class GlobalMenuFilter(BaseFilter):
-    """Aiogram filter that matches only global Reply Keyboard menu labels."""
+    """Aiogram filter that matches global Reply Keyboard menu labels."""
 
     async def __call__(self, message: Message) -> dict[str, GlobalMenuAction] | bool:
         action = detect_global_menu_action(message.text)

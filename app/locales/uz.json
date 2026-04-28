@@ -207,5 +207,14 @@
   "error.invalid_action": "Noto‘g‘ri amal.",
   "error.not_yours": "Bu amal sizga tegishli emas.",
   "help.calc.info": "🧮 Qazo kalkulyator qanday ishlaydi?\n\nKalkulyator katta davr uchun qazo namozlarni hisoblashga yordam beradi.\n\nJarayon 5 qadamdan iborat:\n\n1/5 — Davr turini tanlaysiz\n2/5 — Boshlanish sanasini kiritasiz\n3/5 — Tugash sanasini kiritasiz\n4/5 — Namozlarni tanlaysiz\n5/5 — Natijani ko‘rib tasdiqlaysiz\n\nMasalan, 2020-01 dan 2023-03 gacha Bomdod, Peshin, Asr, Shom va Xuftonni tanlasangiz, bot har bir namoz bo‘yicha alohida hisoblab beradi.\n\nMuhim: katta miqdordagi qazolar ro‘yxatga qo‘shilishidan oldin bot albatta tasdiq so‘raydi.",
-  "help.complete.info": "✅ Qazo ado qilish qanday ishlaydi?\n\nBu bo‘lim qazo namozlarni ado qilingan deb belgilash uchun kerak.\n\nJarayon juda sodda:\n\n1. Qaysi bo‘limdan ado qilganingizni tanlaysiz\n2. Qaysi namoz ekanini tanlaysiz\n3. Nechta ado qilganingizni belgilaysiz\n\nMasalan:\nKalkulyator qazolari → Bomdod → 2 ta\n\nBot shu miqdorni active qazo ro‘yxatidan kamaytiradi.\n\nAgar adashib bossangiz, success ekrandagi “↩️ Bekor qilish” tugmasi orqali oxirgi amalni qaytarishingiz mumkin."
+  "help.complete.info": "✅ Qazo ado qilish qanday ishlaydi?\n\nBu bo‘lim qazo namozlarni ado qilingan deb belgilash uchun kerak.\n\nJarayon juda sodda:\n\n1. Qaysi bo‘limdan ado qilganingizni tanlaysiz\n2. Qaysi namoz ekanini tanlaysiz\n3. Nechta ado qilganingizni belgilaysiz\n\nMasalan:\nKalkulyator qazolari → Bomdod → 2 ta\n\nBot shu miqdorni active qazo ro‘yxatidan kamaytiradi.\n\nAgar adashib bossangiz, success ekrandagi “↩️ Bekor qilish” tugmasi orqali oxirgi amalni qaytarishingiz mumkin.",
+  "settings.prayer_reminders.updated": "✅ Namoz eslatmalari: {status}",
+  "settings.qazo_reminders.updated": "✅ Qazo eslatmalari: {status}",
+  "settings.qazo_times.prompt": "⏰ Qazo eslatma vaqtlari\n\nVaqtlarni HH:MM formatida yozing. Bir nechta vaqtni vergul bilan ajrating.\n\nMasalan:\n08:00, 21:00",
+  "settings.qazo_times.invalid": "Vaqt formati noto‘g‘ri.\n\nIltimos, HH:MM formatida yozing.\n\nMasalan:\n08:00, 21:00",
+  "settings.qazo_times.updated": "✅ Qazo eslatma vaqtlari yangilandi: {times}",
+  "settings.quiet_hours.prompt": "🌙 Sokin vaqt\n\nSokin vaqt oralig‘ini HH:MM-HH:MM formatida yozing.\n\nMasalan:\n23:00-06:00",
+  "settings.quiet_hours.invalid": "Sokin vaqt formati noto‘g‘ri.\n\nIltimos, HH:MM-HH:MM formatida yozing.\n\nMasalan:\n23:00-06:00",
+  "settings.quiet_hours.updated": "✅ Sokin vaqt yangilandi: {start} — {end}",
+  "settings.unknown": "Bu sozlama hozircha mavjud emas."
 }

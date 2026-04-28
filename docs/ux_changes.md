@@ -10,12 +10,12 @@
 ## Onboarding
 
 - `/start` now opens a guided onboarding:
-  - Language
-  - Intro
-  - Privacy
-  - City
-  - Reminder preference
-  - Dashboard
+  1. Language
+  2. Intro
+  3. Privacy
+  4. City
+  5. Reminder preference
+  6. Dashboard
 
 ## Dashboard
 
@@ -40,24 +40,24 @@
 - Default qazo screen shows current-month/current-source qazos.
 - Calculator-generated qazos are separated into their own section.
 - Added period filter UI with today, yesterday, week, month, year and custom range.
-- Qazo add flow is now date -\> prayer -\> confirmation.
+- Qazo add flow is now date -> prayer -> confirmation.
 
 ## Qazo calculator
 
 - Rebuilt as a wizard:
-  - Period type
-  - Start input
-  - End input
-  - Prayer selection
-  - Preview
-  - Confirmation before saving
+  1. Period type
+  2. Start input
+  3. End input
+  4. Prayer selection
+  5. Preview
+  6. Confirmation before saving
 - Month/year inputs are explained before the user types.
 - Preview shows period, days, per-prayer breakdown and total.
 - Bulk apply requires confirmation.
 
 ## Qazo completion
 
-- Rebuilt as source -\> prayer -\> count.
+- Rebuilt as source -> prayer -> count.
 - Count buttons only show valid options based on active count.
 - Manual count validation prevents invalid or too-large numbers.
 - Success screen includes undo, repeat, qazo list and main menu.
@@ -101,3 +101,14 @@
 - Global menu taps now clear the active flow state and open the requested top-level screen before feature/state handlers run.
 - Fixed Telegram client emoji variation issues such as `⚙️ Sozlamalar`, `⚙ Sozlamalar`, and `Sozlamalar` not being handled consistently.
 - This specifically fixes the Settings button appearing in chat but not opening the Settings screen.
+
+## Fix4 — settings refactor
+
+- Settings navigation moved to a shared global navigation function.
+- Reply Keyboard global menu labels are now detected in both the dedicated router and the catch-all state text handler.
+- Active wizard states can no longer swallow `⚙️ Sozlamalar` / `Sozlamalar` menu taps.
+- Settings renderer now creates missing reminder settings safely.
+- Prayer reminders and qazo reminders are real toggles.
+- Qazo reminder times can be updated from Settings with `HH:MM, HH:MM` input.
+- Quiet hours can be updated from Settings with `HH:MM-HH:MM` input.
+- Unknown settings callbacks return the settings screen instead of dead-ending.

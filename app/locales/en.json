@@ -207,5 +207,14 @@
   "error.invalid_action": "Noto‘g‘ri amal.",
   "error.not_yours": "Bu amal sizga tegishli emas.",
   "help.calc.info": "🧮 How does the missed prayer calculator work?\n\nThe calculator helps you estimate missed prayers for a large period.\n\nThe flow has 5 steps:\n\n1/5 — Choose the period type\n2/5 — Enter the start date\n3/5 — Enter the end date\n4/5 — Select prayers\n5/5 — Review and confirm the result\n\nFor example, if you select 2020-01 to 2023-03 and all five prayers, the bot calculates a separate count for each prayer.\n\nImportant: before adding a large number of records, the bot always asks for confirmation.",
-  "help.complete.info": "✅ How does completing missed prayers work?\n\nThis section is used to mark missed prayers as completed.\n\nThe flow is simple:\n\n1. Choose the source section\n2. Choose the prayer\n3. Choose the count\n\nExample:\nCalculator missed prayers → Fajr → 2\n\nThe bot subtracts that amount from your active missed-prayer list.\n\nIf you tap by mistake, use the “↩️ Undo” button on the success screen to revert the last action."
+  "help.complete.info": "✅ How does completing missed prayers work?\n\nThis section is used to mark missed prayers as completed.\n\nThe flow is simple:\n\n1. Choose the source section\n2. Choose the prayer\n3. Choose the count\n\nExample:\nCalculator missed prayers → Fajr → 2\n\nThe bot subtracts that amount from your active missed-prayer list.\n\nIf you tap by mistake, use the “↩️ Undo” button on the success screen to revert the last action.",
+  "settings.prayer_reminders.updated": "✅ Prayer reminders: {status}",
+  "settings.qazo_reminders.updated": "✅ Qazo reminders: {status}",
+  "settings.qazo_times.prompt": "⏰ Qazo reminder times\n\nEnter times in HH:MM format. Separate multiple times with commas.\n\nExample:\n08:00, 21:00",
+  "settings.qazo_times.invalid": "Invalid time format.\n\nPlease use HH:MM format.\n\nExample:\n08:00, 21:00",
+  "settings.qazo_times.updated": "✅ Qazo reminder times updated: {times}",
+  "settings.quiet_hours.prompt": "🌙 Quiet hours\n\nEnter the period in HH:MM-HH:MM format.\n\nExample:\n23:00-06:00",
+  "settings.quiet_hours.invalid": "Invalid quiet hours format.\n\nPlease use HH:MM-HH:MM format.\n\nExample:\n23:00-06:00",
+  "settings.quiet_hours.updated": "✅ Quiet hours updated: {start} — {end}",
+  "settings.unknown": "This settings section is not available yet."
 }

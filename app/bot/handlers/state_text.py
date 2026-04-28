@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import calendar
-from datetime import date
+from datetime import date, time
 
 from aiogram import Router
 from aiogram.types import Message
 
+from app.bot.filters.text import detect_global_menu_action
+from app.bot.handlers.global_navigation import send_global_menu_screen
 from app.bot.handlers.qazo import render_qazo_overview, source_label, source_values
 from app.bot.handlers.qazo_calculator import calc_input_text, calc_prayers_text
+from app.bot.handlers.settings import get_or_create_reminder_setting, render_settings
 from app.bot.keyboards.language import onboarding_reminder_keyboard
 from app.bot.keyboards.main import main_menu_keyboard
 from app.bot.keyboards.prayer import prayer_select_keyboard
 from app.bot.keyboards.qazo import qazo_complete_success_keyboard, qazo_overview_keyboard
 from app.bot.keyboards.qazo_calculator import calculator_input_keyboard, calculator_prayers_keyboard
+from app.bot.keyboards.settings import settings_keyboard
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.states import StatesRepository
 from app.db.repositories.users import UsersRepository
@@ -40,13 +44,89 @@ def parse_year(value: str) -> int:
     return year
 
 
+def parse_hhmm(value: str) -> time:
+    parts = value.strip().split(":")
+    if len(parts) != 2:
+        raise ValueError
+    hour, minute = int(parts[0]), int(parts[1])
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ValueError
+    return time(hour=hour, minute=minute)
+
+
+def parse_time_list(value: str) -> list[str]:
+    raw_items = [part.strip() for part in value.replace(";", ",").split(",")]
+    times = []
+    for raw in raw_items:
+        if not raw:
+            continue
+        parsed = parse_hhmm(raw)
+        times.append(parsed.strftime("%H:%M"))
+    if not times:
+        raise ValueError
+    # Deduplicate while preserving order.
+    return list(dict.fromkeys(times))
+
+
 @router.message()
 async def state_text_handler(message: Message, current_user, session, is_admin: bool):
+    # Global Reply Keyboard navigation must work from every wizard state.
+    # This fallback catches labels that were not handled by earlier routers.
+    action = detect_global_menu_action(message.text)
+    if action:
+        await send_global_menu_screen(
+            message=message,
+            action=action,
+            current_user=current_user,
+            session=session,
+            is_admin=is_admin,
+        )
+        return
+
     state = await StatesRepository(session).get(current_user.id)
     if not state:
         return
     lang = current_user.language_code or "uz"
     text = (message.text or "").strip()
+
+    if state.state == "settings_waiting_qazo_times":
+        try:
+            times = parse_time_list(text)
+        except ValueError:
+            await message.answer(t(lang, "settings.qazo_times.invalid"))
+            return
+        reminder = await get_or_create_reminder_setting(current_user, session)
+        reminder.qazo_reminder_times = times
+        await StatesRepository(session).clear(current_user.id)
+        await message.answer(
+            t(lang, "settings.qazo_times.updated", times=", ".join(times))
+            + "\n\n"
+            + await render_settings(current_user, session),
+            reply_markup=settings_keyboard(lang),
+        )
+        return
+
+    if state.state == "settings_waiting_quiet_hours":
+        separator = "-" if "-" in text else "—"
+        try:
+            start_raw, end_raw = [part.strip() for part in text.split(separator, 1)]
+            start = parse_hhmm(start_raw)
+            end = parse_hhmm(end_raw)
+        except ValueError:
+            await message.answer(t(lang, "settings.quiet_hours.invalid"))
+            return
+        reminder = await get_or_create_reminder_setting(current_user, session)
+        reminder.quiet_hours_enabled = True
+        reminder.quiet_hours_start = start
+        reminder.quiet_hours_end = end
+        await StatesRepository(session).clear(current_user.id)
+        await message.answer(
+            t(lang, "settings.quiet_hours.updated", start=start.strftime("%H:%M"), end=end.strftime("%H:%M"))
+            + "\n\n"
+            + await render_settings(current_user, session),
+            reply_markup=settings_keyboard(lang),
+        )
+        return
 
     if state.state == "waiting_custom_city":
         city = text[:120].strip()
