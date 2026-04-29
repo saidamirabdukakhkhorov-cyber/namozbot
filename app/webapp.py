@@ -131,6 +131,28 @@ async def ensure_qazo_schema(session) -> None:
     """))
     await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_plans_user_enabled ON qazo_plans (user_id, enabled)'))
 
+    # Self-heal older production DBs. CREATE TABLE IF NOT EXISTS does not add
+    # columns to existing tables; missing columns caused HTTP 500 in Qazo.
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS mode VARCHAR(30) NOT NULL DEFAULT 'custom'"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS daily_targets JSONB NOT NULL DEFAULT '{\"fajr\":1,\"dhuhr\":1,\"asr\":1,\"maghrib\":1,\"isha\":1,\"witr\":0}'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS preferred_times JSONB NOT NULL DEFAULT '[]'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS notes TEXT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS source VARCHAR(30) NOT NULL DEFAULT 'manual'"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_status ON missed_prayers (user_id, status)'))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_prayer_status ON missed_prayers (user_id, prayer_name, status)'))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_source_status ON missed_prayers (user_id, source, status)'))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_qazo_calculation_id ON missed_prayers (qazo_calculation_id)'))
+
     await session.execute(text("""
     CREATE TABLE IF NOT EXISTS qazo_completion_actions (
         id BIGSERIAL PRIMARY KEY,
@@ -147,6 +169,13 @@ async def ensure_qazo_schema(session) -> None:
         undone_at TIMESTAMPTZ NULL
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS source_filter JSONB NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed'"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS undone_at TIMESTAMPTZ NULL"))
     await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_created ON qazo_completion_actions (user_id, created_at DESC)'))
     await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_status ON qazo_completion_actions (user_id, status)'))
     await session.commit()
@@ -724,20 +753,28 @@ async def api_action(request: web.Request) -> web.Response:
         # ── COMPLETE QAZO (mark 1 as done) ──
         elif action == "complete_qazo":
             prayer = body.get("prayer", "")
-            count = max(1, min(int(body.get("count", 1)), 99))
+            try:
+                count = max(1, min(int(body.get("count", 1) or 1), 99))
+            except Exception:
+                count = 1
             if prayer in QAZO_PRAYER_NAMES:
                 repo = MissedPrayersRepository(session)
-                available = await repo.count_by_prayer(user.id, prayer)
-                if available <= 0:
-                    return web.json_response({"error": "no active qazo"}, status=400)
-                actual_count = min(count, available)
                 try:
+                    available = await repo.count_by_prayer(user.id, prayer)
+                    if available <= 0:
+                        return web.json_response({"ok": False, "message": "Ado qilinmagan qazo qolmagan"}, status=400)
+                    actual_count = min(count, available)
                     completion_action = await repo.complete_oldest(user_id=user.id, prayer_name=prayer, count=actual_count)
                     remaining = await repo.count_by_prayer(user.id, prayer)
                     await session.commit()
                     return web.json_response({"ok": True, "completed": actual_count, "prayer": prayer, "action_id": int(completion_action.id), "active_remaining": remaining})
                 except ValueError as e:
-                    return web.json_response({"error": str(e)}, status=400)
+                    await session.rollback()
+                    return web.json_response({"ok": False, "message": str(e)}, status=400)
+                except Exception as exc:
+                    logger.exception("complete_qazo failed for user %s prayer %s: %s", user.id, prayer, exc)
+                    await session.rollback()
+                    return web.json_response({"ok": False, "message": "Qazo ado qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring."}, status=500)
 
         # ── UPDATE TODAY'S PRAYER STATUS ──
         elif action == "set_prayer_status":
