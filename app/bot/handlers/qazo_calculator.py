@@ -1,250 +1,396 @@
+"""
+Qazo kalkulyator — soddalashtirilgan UX.
+
+Eski UX muammolari:
+  1. "Davr turi" qadami (sana/oy/yil tanlov) — ortiqcha murakkablik,
+     foydalanuvchi nima tanlash kerakligini tushunmaydi.
+  2. 5 ta qadam (1/5, 2/5...) — juda uzun, charchatuvchi.
+  3. "Faqat hisoblab qo'yish" vs "Ro'yxatga qo'shish" farqi tushunarsiz.
+  4. Namoz tanlash — tugmalar ko'p, barchasini bosib chiqish kerak.
+
+Yangi UX:
+  1. Davr tanlash: tez tugmalar (Bu yil / O'tgan yil / O'zim kiritaman).
+  2. Agar "O'zim kiritaman" → faqat YILLARNI kiriting (sodda, 4 ta raqam).
+  3. Namoz tanlash: bir ekranda, "Barchasi" tugmasi bilan.
+  4. Natija: aniq ko'rsatiladi, faqat 1 ta tugma — "Ro'yxatga qo'shish".
+  5. Jami 3 qadam: Davr → Namozlar → Tasdiqlash.
+"""
 from __future__ import annotations
 
 from datetime import date
 
 from aiogram import F, Router
+from aiogram.filters import BaseFilter
 from app.bot.filters.text import text_is_one_of
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.handlers.dashboard import build_dashboard, dashboard_keyboard
-from app.bot.keyboards.qazo_calculator import (
-    calculator_apply_keyboard,
-    calculator_input_keyboard,
-    calculator_prayers_keyboard,
-    calculator_result_keyboard,
-    calculator_start_keyboard,
-    calculator_success_keyboard,
-)
-from app.core.constants import PRAYER_NAMES
+from app.core.constants import QAZO_PRAYER_NAMES
 from app.db.models import User
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.qazo_calculations import QazoCalculationsRepository
 from app.db.repositories.states import StatesRepository
 from app.services.i18n import prayer_label, t
 from app.services.qazo_calculator import QazoCalculatorService
+from app.services.timezone import tashkent_today
 
 router = Router(name="qazo_calculator")
 
+# ── helpers ──────────────────────────────────────────────────────────────────
 
-def payload_dates(payload):
-    return date.fromisoformat(payload["start_date"]), date.fromisoformat(payload["end_date"])
+def _svc(session) -> QazoCalculatorService:
+    return QazoCalculatorService(
+        QazoCalculationsRepository(session),
+        MissedPrayersRepository(session),
+    )
 
 
-async def send_or_edit(event: Message | CallbackQuery, text: str, reply_markup=None):
+async def _send(event: Message | CallbackQuery, text: str, kb=None):
     if isinstance(event, CallbackQuery):
         try:
-            await event.message.edit_text(text, reply_markup=reply_markup)
+            await event.message.edit_text(text, reply_markup=kb)
         except Exception:
-            await event.message.answer(text, reply_markup=reply_markup)
+            await event.message.answer(text, reply_markup=kb)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=reply_markup)
+        await event.answer(text, reply_markup=kb)
 
 
-def calc_start_text(language: str) -> str:
-    return "\n".join([
-        t(language, "qazo.calculator.title"),
-        "",
-        t(language, "qazo.calculator.step.period_type"),
-        "",
-        t(language, "qazo.calculator.period_question"),
-    ])
+def _lang(user: User) -> str:
+    return user.language_code or "uz"
 
 
-def calc_input_text(language: str, step_key: str, example: str) -> str:
-    return "\n".join([
-        t(language, "qazo.calculator.title"),
-        "",
-        t(language, step_key),
-        "",
-        t(language, "qazo.calculator.input_hint"),
-        "",
-        t(language, "common.example", example=example),
-    ])
+# ── keyboards ─────────────────────────────────────────────────────────────────
+
+def _period_keyboard(lang: str) -> InlineKeyboardMarkup:
+    """Qadam 1: Davr tanlash — tez tugmalar + o'zim kiritaman."""
+    today = tashkent_today()
+    this_year = today.year
+    last_year = this_year - 1
+    two_years_ago = this_year - 2
+
+    rows = [
+        [InlineKeyboardButton(
+            text=f"📅 {this_year} (bu yil)",
+            callback_data=f"calc2:year:{this_year}:{this_year}",
+        )],
+        [InlineKeyboardButton(
+            text=f"📅 {last_year}",
+            callback_data=f"calc2:year:{last_year}:{last_year}",
+        )],
+        [InlineKeyboardButton(
+            text=f"📅 {two_years_ago}",
+            callback_data=f"calc2:year:{two_years_ago}:{two_years_ago}",
+        )],
+        [InlineKeyboardButton(
+            text=f"📅 {last_year} — {this_year} (2 yil)",
+            callback_data=f"calc2:year:{last_year}:{this_year}",
+        )],
+        [InlineKeyboardButton(
+            text="✏️ Boshqa davr (yil kiriting)",
+            callback_data="calc2:custom_year",
+        )],
+        [InlineKeyboardButton(text=t(lang, "common.cancel"), callback_data="calc2:cancel")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def calc_prayers_text(language: str, payload: dict) -> str:
-    selected = payload.get("selected_prayers", [])
-    selected_lines = [f"✅ {prayer_label(language, p)}" for p in PRAYER_NAMES if p in selected]
-    selected_text = "\n".join(selected_lines) if selected_lines else t(language, "qazo.calculator.none_selected")
-    return "\n".join([
-        t(language, "qazo.calculator.title"),
-        "",
-        t(language, "qazo.calculator.step.prayers"),
-        "",
-        t(language, "qazo.calculator.period_preview", start=payload.get("start_date"), end=payload.get("end_date")),
-        "",
-        t(language, "qazo.calculator.prayers_question"),
-        "",
-        t(language, "qazo.calculator.selected", selected=selected_text),
-    ])
+def _prayers_keyboard(lang: str, selected: list[str]) -> InlineKeyboardMarkup:
+    """Qadam 2: Namoz tanlash."""
+    rows = []
+    for p in QAZO_PRAYER_NAMES:
+        mark = "✅ " if p in selected else "☐ "
+        rows.append([InlineKeyboardButton(
+            text=f"{mark}{prayer_label(lang, p)}",
+            callback_data=f"calc2:toggle:{p}",
+        )])
 
-
-@router.message(text_is_one_of("🧮 Qazo kalkulyator", "🧮 Калькулятор каза", "🧮 Missed prayer calculator", "Qazo kalkulyator", "Калькулятор каза", "Missed prayer calculator"))
-@router.callback_query(F.data == "calc:start")
-async def calculator_start(event: Message | CallbackQuery, current_user: User, session):
-    await StatesRepository(session).set(current_user.id, "calc_period_type", {})
-    lang = current_user.language_code or "uz"
-    await send_or_edit(event, calc_start_text(lang), calculator_start_keyboard(lang))
-
-
-@router.callback_query(F.data.startswith("calc:type:"))
-async def calculator_period_type(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
-    kind = callback.data.split(":", 2)[2]
-    if kind == "date":
-        await StatesRepository(session).set(current_user.id, "calc_waiting_start_date", {"period_type": "date"})
-        text = calc_input_text(lang, "qazo.calculator.step.start_date", "2020-01-01")
-    elif kind == "month":
-        await StatesRepository(session).set(current_user.id, "calc_waiting_start_month", {"period_type": "month"})
-        text = calc_input_text(lang, "qazo.calculator.step.start_month", "2020-01")
+    if len(selected) == len(QAZO_PRAYER_NAMES):
+        rows.append([InlineKeyboardButton(
+            text="☐ Barchasini olib tashlash",
+            callback_data="calc2:clear",
+        )])
     else:
-        await StatesRepository(session).set(current_user.id, "calc_waiting_start_year", {"period_type": "year"})
-        text = calc_input_text(lang, "qazo.calculator.step.start_year", "2020")
-    await send_or_edit(callback, text, calculator_input_keyboard(lang, back_callback="calc:start"))
+        rows.append([InlineKeyboardButton(
+            text="✅ Barchasini tanlash",
+            callback_data="calc2:all",
+        )])
+
+    rows.append([InlineKeyboardButton(
+        text=f"➡️ Hisoblash ({len(selected)} ta namoz)",
+        callback_data="calc2:preview",
+    )])
+    rows.append([InlineKeyboardButton(text=t(lang, "common.back"), callback_data="calc2:start")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.callback_query(F.data.startswith("calc_toggle:"))
+def _confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Ha, ro'yxatga qo'shish", callback_data="calc2:apply")],
+        [InlineKeyboardButton(text=t(lang, "common.back"), callback_data="calc2:back_to_prayers")],
+        [InlineKeyboardButton(text=t(lang, "common.cancel"), callback_data="calc2:cancel")],
+    ])
+
+
+def _success_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📌 Qazo ro'yxatim", callback_data="qazo:overview")],
+        [InlineKeyboardButton(text="✅ Qazolarni bajarish", callback_data="qazo_complete:start")],
+        [InlineKeyboardButton(text=t(lang, "common.home"), callback_data="dashboard")],
+    ])
+
+
+# ── screens ───────────────────────────────────────────────────────────────────
+
+def _step1_text(lang: str) -> str:
+    return (
+        "🧮 Qazo kalkulyator\n\n"
+        "📍 1-qadam: Qaysi yillardan qazo qoldirgan bo'lsangiz, shu davrni tanlang.\n\n"
+        "Masalan, 2020-yildan 2024-yilgacha namoz o'qimagan bo'lsangiz — "
+        "har bir yilni alohida yoki bir vaqtda tanlashingiz mumkin."
+    )
+
+
+def _step2_text(lang: str, start_year: int, end_year: int) -> str:
+    today = tashkent_today()
+    end_date = date(end_year, 12, 31) if end_year < today.year else today
+    start_date = date(start_year, 1, 1)
+    days = (end_date - start_date).days + 1
+    return (
+        f"🧮 Qazo kalkulyator\n\n"
+        f"📅 Tanlangan davr: {start_year} — {end_year}\n"
+        f"📆 Kunlar soni: {days} kun\n\n"
+        f"📍 2-qadam: Qaysi namozlarni qazo qilgansiz?\n\n"
+        f"Faqat o'sha vaqtda o'qimagan namozlaringizni tanlang."
+    )
+
+
+def _preview_text(lang: str, start_date: date, end_date: date, selected: list[str], breakdown: dict, total: int) -> str:
+    lines = [
+        "🧮 Qazo kalkulyator — Natija",
+        "",
+        f"📅 Davr: {start_date.year} — {end_date.year}",
+        f"📆 {(end_date - start_date).days + 1} kun",
+        "",
+        "📊 Hisoblangan qazo namozlar:",
+    ]
+    for p in selected:
+        lines.append(f"  • {prayer_label(lang, p)}: {breakdown.get(p, 0)} ta")
+    lines += [
+        "",
+        f"🔢 Jami: {total} ta qazo namoz",
+        "",
+        "⚠️ Ro'yxatga qo'shsangiz, bular qazo ro'yxatingizda paydo bo'ladi.",
+        "Keyin birma-bir yoki guruhlab bajarib borasiz.",
+    ]
+    return "\n".join(lines)
+
+
+# ── handlers ──────────────────────────────────────────────────────────────────
+
+@router.message(text_is_one_of(
+    "🧮 Qazo kalkulyator", "🧮 Калькулятор каза", "🧮 Missed prayer calculator",
+    "Qazo kalkulyator", "Калькулятор каза", "Missed prayer calculator",
+))
+@router.callback_query(F.data.in_({"calc2:start", "calc:start"}))
+async def calculator_start(event: Message | CallbackQuery, current_user: User, session):
+    await StatesRepository(session).set(current_user.id, "calc2_step1", {})
+    lang = _lang(current_user)
+    await _send(event, _step1_text(lang), _period_keyboard(lang))
+
+
+@router.callback_query(F.data.startswith("calc2:year:"))
+async def calculator_year_selected(callback: CallbackQuery, current_user: User, session):
+    lang = _lang(current_user)
+    _, _, start_str, end_str = callback.data.split(":")
+    start_year, end_year = int(start_str), int(end_str)
+    payload = {"start_year": start_year, "end_year": end_year, "selected": []}
+    await StatesRepository(session).set(current_user.id, "calc2_step2", payload)
+    await _send(callback, _step2_text(lang, start_year, end_year), _prayers_keyboard(lang, []))
+
+
+@router.callback_query(F.data == "calc2:custom_year")
+async def calculator_custom_year(callback: CallbackQuery, current_user: User, session):
+    lang = _lang(current_user)
+    await StatesRepository(session).set(current_user.id, "calc2_waiting_years", {})
+    text = (
+        "✏️ Boshlanish va tugash yilini kiriting.\n\n"
+        "Misol: 2018 2023\n"
+        "(ikki yilni bo'sh joy bilan yozing)\n\n"
+        "Faqat bir yil bo'lsa, bir xil yilni ikki marta yozing:\n"
+        "Misol: 2020 2020"
+    )
+    await _send(callback, text, InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "common.back"), callback_data="calc2:start")],
+    ]))
+
+
+@router.callback_query(F.data.startswith("calc2:toggle:"))
 async def calculator_toggle(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
+    lang = _lang(current_user)
+    prayer = callback.data.split(":", 2)[2]
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    selected = list(payload.get("selected_prayers", []))
-    prayer = callback.data.split(":", 1)[1]
+    selected = list(payload.get("selected", []))
     if prayer in selected:
         selected.remove(prayer)
     else:
         selected.append(prayer)
-    payload["selected_prayers"] = selected
-    await StatesRepository(session).set(current_user.id, "calc_select_prayers", payload)
-    text = calc_prayers_text(lang, payload)
-    await callback.message.edit_text(text, reply_markup=calculator_prayers_keyboard(lang, selected))
+    payload["selected"] = selected
+    await StatesRepository(session).set(current_user.id, "calc2_step2", payload)
+    start_year = payload.get("start_year", tashkent_today().year)
+    end_year = payload.get("end_year", tashkent_today().year)
+    await callback.message.edit_text(_step2_text(lang, start_year, end_year), reply_markup=_prayers_keyboard(lang, selected))
     await callback.answer()
 
 
-@router.callback_query(F.data.in_({"calc:select_all", "calc:clear_all"}))
-async def calculator_all(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
+@router.callback_query(F.data.in_({"calc2:all", "calc2:clear"}))
+async def calculator_all_clear(callback: CallbackQuery, current_user: User, session):
+    lang = _lang(current_user)
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    selected = list(PRAYER_NAMES) if callback.data == "calc:select_all" else []
-    payload["selected_prayers"] = selected
-    await StatesRepository(session).set(current_user.id, "calc_select_prayers", payload)
-    await callback.message.edit_text(calc_prayers_text(lang, payload), reply_markup=calculator_prayers_keyboard(lang, selected))
+    payload["selected"] = list(QAZO_PRAYER_NAMES) if callback.data == "calc2:all" else []
+    await StatesRepository(session).set(current_user.id, "calc2_step2", payload)
+    start_year = payload.get("start_year", tashkent_today().year)
+    end_year = payload.get("end_year", tashkent_today().year)
+    await callback.message.edit_text(_step2_text(lang, start_year, end_year), reply_markup=_prayers_keyboard(lang, payload["selected"]))
     await callback.answer()
 
 
-@router.callback_query(F.data == "calc:back_to_end")
-async def calculator_back_to_end(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
-    state = await StatesRepository(session).get(current_user.id)
-    payload = state.payload if state else {}
-    kind = payload.get("period_type", "date")
-    if kind == "month":
-        await StatesRepository(session).set(current_user.id, "calc_waiting_end_month", payload)
-        text = calc_input_text(lang, "qazo.calculator.step.end_month", "2023-03")
-    elif kind == "year":
-        await StatesRepository(session).set(current_user.id, "calc_waiting_end_year", payload)
-        text = calc_input_text(lang, "qazo.calculator.step.end_year", "2023")
-    else:
-        await StatesRepository(session).set(current_user.id, "calc_waiting_end_date", payload)
-        text = calc_input_text(lang, "qazo.calculator.step.end_date", "2023-03-31")
-    await send_or_edit(callback, text, calculator_input_keyboard(lang, back_callback="calc:start"))
-
-
-@router.callback_query(F.data == "calc:back_to_prayers")
-async def calculator_back_to_prayers(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
-    state = await StatesRepository(session).get(current_user.id)
-    payload = state.payload if state else {}
-    selected = payload.get("selected_prayers", [])
-    await StatesRepository(session).set(current_user.id, "calc_select_prayers", payload)
-    await send_or_edit(callback, calc_prayers_text(lang, payload), calculator_prayers_keyboard(lang, selected))
-
-
-@router.callback_query(F.data == "calc:preview")
+@router.callback_query(F.data == "calc2:preview")
 async def calculator_preview(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
+    lang = _lang(current_user)
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    selected = payload.get("selected_prayers", [])
+    selected = payload.get("selected", [])
     if not selected:
-        await callback.answer(t(lang, "qazo.calculator.error.no_prayers"), show_alert=True)
+        await callback.answer("Kamida bitta namozni tanlang", show_alert=True)
         return
+
+    today = tashkent_today()
+    start_year = payload.get("start_year", today.year)
+    end_year = payload.get("end_year", today.year)
+    start_date = date(start_year, 1, 1)
+    end_date = date(end_year, 12, 31) if end_year < today.year else today
+
     try:
-        start, end = payload_dates(payload)
-        service = QazoCalculatorService(QazoCalculationsRepository(session), MissedPrayersRepository(session))
-        preview = service.calculate(start, end, selected)
+        svc = _svc(session)
+        preview = svc.calculate(start_date, end_date, selected)
     except ValueError as exc:
         await callback.answer(str(exc), show_alert=True)
         return
-    breakdown_lines = "\n".join(f"{prayer_label(lang, p)}: {preview.breakdown[p]} ta" for p in preview.selected_prayers)
-    text = t(
-        lang,
-        "qazo.calculator.preview.text",
-        start=start.isoformat(),
-        end=end.isoformat(),
-        days=preview.days_count,
-        breakdown=breakdown_lines,
-        total=preview.total_count,
-    )
-    payload["preview"] = {"days_count": preview.days_count, "total_count": preview.total_count, "breakdown": preview.breakdown}
-    await StatesRepository(session).set(current_user.id, "calc_preview", payload)
-    await send_or_edit(callback, text, calculator_result_keyboard(lang))
+
+    payload["start_date"] = start_date.isoformat()
+    payload["end_date"] = end_date.isoformat()
+    payload["total"] = preview.total_count
+    payload["breakdown"] = preview.breakdown
+    await StatesRepository(session).set(current_user.id, "calc2_step3", payload)
+    text = _preview_text(lang, start_date, end_date, preview.selected_prayers, preview.breakdown, preview.total_count)
+    await _send(callback, text, _confirm_keyboard(lang))
 
 
-@router.callback_query(F.data == "calc:save_only")
-async def calculator_save_only(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
+@router.callback_query(F.data == "calc2:back_to_prayers")
+async def calculator_back_to_prayers(callback: CallbackQuery, current_user: User, session):
+    lang = _lang(current_user)
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    start, end = payload_dates(payload)
-    selected = payload.get("selected_prayers", [])
-    service = QazoCalculatorService(QazoCalculationsRepository(session), MissedPrayersRepository(session))
-    preview = service.calculate(start, end, selected)
-    await service.save_preview(current_user.id, preview)
-    await StatesRepository(session).clear(current_user.id)
-    await send_or_edit(callback, t(lang, "qazo.calculator.save_only_success"), calculator_success_keyboard(lang))
+    selected = payload.get("selected", [])
+    start_year = payload.get("start_year", tashkent_today().year)
+    end_year = payload.get("end_year", tashkent_today().year)
+    await StatesRepository(session).set(current_user.id, "calc2_step2", payload)
+    await _send(callback, _step2_text(lang, start_year, end_year), _prayers_keyboard(lang, selected))
 
 
-@router.callback_query(F.data == "calc:apply_confirm")
-async def calculator_apply_confirm(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
-    state = await StatesRepository(session).get(current_user.id)
-    payload = state.payload if state else {}
-    total = payload.get("preview", {}).get("total_count", 0)
-    text = t(lang, "qazo.calculator.confirm.text", count=total)
-    await send_or_edit(callback, text, calculator_apply_keyboard(lang))
-
-
-@router.callback_query(F.data == "calc:apply")
+@router.callback_query(F.data == "calc2:apply")
 async def calculator_apply(callback: CallbackQuery, current_user: User, session):
-    lang = current_user.language_code or "uz"
+    lang = _lang(current_user)
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    start, end = payload_dates(payload)
-    selected = payload.get("selected_prayers", [])
-    service = QazoCalculatorService(QazoCalculationsRepository(session), MissedPrayersRepository(session))
-    preview = service.calculate(start, end, selected)
-    calculation = await service.save_preview(current_user.id, preview)
-    created, skipped = await service.apply(user_id=current_user.id, calculation_id=calculation.id, start_date=start, end_date=end, selected_prayers=selected)
-    await StatesRepository(session).clear(current_user.id)
-    created_lines = "\n".join(f"{prayer_label(lang, p)}: {created[p]} ta" for p in selected)
-    skipped_lines = "\n".join(f"{prayer_label(lang, p)}: {skipped[p]} ta" for p in selected if skipped[p] > 0) or "—"
-    text = t(
-        lang,
-        "qazo.calculator.success.text",
-        calculated="\n".join(f"{prayer_label(lang, p)}: {preview.breakdown[p]} ta" for p in selected),
-        created=created_lines,
-        skipped=skipped_lines,
-        created_total=sum(created.values()),
-        skipped_total=sum(skipped.values()),
+
+    start_date = date.fromisoformat(payload["start_date"])
+    end_date = date.fromisoformat(payload["end_date"])
+    selected = payload.get("selected", [])
+
+    svc = _svc(session)
+    try:
+        preview = svc.calculate(start_date, end_date, selected)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+
+    calculation = await svc.save_preview(current_user.id, preview)
+    created, skipped = await svc.apply(
+        user_id=current_user.id,
+        calculation_id=calculation.id,
+        start_date=start_date,
+        end_date=end_date,
+        selected_prayers=selected,
     )
-    await send_or_edit(callback, text, calculator_success_keyboard(lang))
+    await StatesRepository(session).clear(current_user.id)
+
+    created_total = sum(created.values())
+    skipped_total = sum(skipped.values())
+    lines = [
+        "✅ Qazolar ro'yxatga qo'shildi!",
+        "",
+        f"🆕 Yangi qo'shildi: {created_total} ta",
+    ]
+    if skipped_total > 0:
+        lines.append(f"⏭ Oldin qo'shilgan (o'tkazildi): {skipped_total} ta")
+    lines += [
+        "",
+        "Endi qazo ro'yxatingizda ko'rishingiz va birma-bir bajarib borishingiz mumkin.",
+    ]
+    await _send(callback, "\n".join(lines), _success_keyboard(lang))
 
 
-@router.callback_query(F.data == "calc:cancel")
+@router.callback_query(F.data == "calc2:cancel")
 async def calculator_cancel(callback: CallbackQuery, current_user: User, session):
     await StatesRepository(session).clear(current_user.id)
-    lang = current_user.language_code or "uz"
-    await send_or_edit(callback, await build_dashboard(current_user, session), dashboard_keyboard(lang))
+    lang = _lang(current_user)
+    await _send(callback, await build_dashboard(current_user, session), dashboard_keyboard(lang))
+
+
+# ── state: freetext year input ────────────────────────────────────────────────
+
+async def handle_calc2_year_input(message: Message, current_user: User, session, text: str) -> bool:
+    """Called from state_text_handler when state == calc2_waiting_years. Returns True if handled."""
+    lang = _lang(current_user)
+    parts = text.strip().split()
+    today = tashkent_today()
+    try:
+        if len(parts) == 1:
+            y = int(parts[0])
+            start_year = end_year = y
+        elif len(parts) == 2:
+            start_year, end_year = int(parts[0]), int(parts[1])
+        else:
+            raise ValueError
+        if not (1900 <= start_year <= today.year) or not (1900 <= end_year <= today.year):
+            raise ValueError
+        if start_year > end_year:
+            start_year, end_year = end_year, start_year
+    except ValueError:
+        await message.answer(
+            f"❌ Noto'g'ri format. Yilni to'g'ri kiriting.\n\nMisol: 2018 2023\n\n"
+            f"Yillar 1900 va {today.year} orasida bo'lishi kerak."
+        )
+        return True
+
+    payload = {"start_year": start_year, "end_year": end_year, "selected": []}
+    await StatesRepository(session).set(current_user.id, "calc2_step2", payload)
+    await message.answer(_step2_text(lang, start_year, end_year), reply_markup=_prayers_keyboard(lang, []))
+    return True
+
+
+# ── backward compat for old calc: callbacks (redirect to new flow) ─────────────
+@router.callback_query(F.data.startswith("calc:type:"))
+@router.callback_query(F.data.startswith("calc_toggle:"))
+@router.callback_query(F.data.in_({"calc:select_all", "calc:clear_all", "calc:preview",
+                                    "calc:save_only", "calc:apply_confirm", "calc:apply",
+                                    "calc:back_to_end", "calc:back_to_prayers", "calc:cancel"}))
+async def old_calc_redirect(callback: CallbackQuery, current_user: User, session):
+    """Redirect any lingering old calc: callbacks to the new flow."""
+    await StatesRepository(session).clear(current_user.id)
+    lang = _lang(current_user)
+    await _send(callback, _step1_text(lang), _period_keyboard(lang))

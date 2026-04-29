@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import date, time
+from datetime import date
 
 from aiogram import Router
 from aiogram.types import Message
@@ -9,7 +9,7 @@ from aiogram.types import Message
 from app.bot.filters.text import detect_global_menu_action
 from app.bot.handlers.global_navigation import send_global_menu_screen
 from app.bot.handlers.qazo import render_qazo_overview, source_label, source_values
-from app.bot.handlers.qazo_calculator import calc_input_text, calc_prayers_text
+from app.bot.handlers.qazo_calculator import calc_input_text, calc_prayers_text, handle_calc2_year_input
 from app.bot.handlers.settings import get_or_create_reminder_setting, render_settings
 from app.bot.keyboards.language import onboarding_reminder_keyboard
 from app.bot.keyboards.main import main_menu_keyboard
@@ -20,6 +20,8 @@ from app.bot.keyboards.settings import settings_keyboard
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.states import StatesRepository
 from app.db.repositories.users import UsersRepository
+# FIX: import shared parsing utils instead of duplicating parse_hhmm
+from app.services.parsing import parse_hhmm, parse_time_list, parse_quiet_hours
 from app.services.timezone import tashkent_today
 from app.services.i18n import prayer_label, t
 
@@ -45,34 +47,8 @@ def parse_year(value: str) -> int:
     return year
 
 
-def parse_hhmm(value: str) -> time:
-    parts = value.strip().split(":")
-    if len(parts) != 2:
-        raise ValueError
-    hour, minute = int(parts[0]), int(parts[1])
-    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
-        raise ValueError
-    return time(hour=hour, minute=minute)
-
-
-def parse_time_list(value: str) -> list[str]:
-    raw_items = [part.strip() for part in value.replace(";", ",").split(",")]
-    times = []
-    for raw in raw_items:
-        if not raw:
-            continue
-        parsed = parse_hhmm(raw)
-        times.append(parsed.strftime("%H:%M"))
-    if not times:
-        raise ValueError
-    # Deduplicate while preserving order.
-    return list(dict.fromkeys(times))
-
-
 @router.message()
 async def state_text_handler(message: Message, current_user, session, is_admin: bool):
-    # Global Reply Keyboard navigation must work from every wizard state.
-    # This fallback catches labels that were not handled by earlier routers.
     if current_user is None:
         return
 
@@ -111,11 +87,8 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
         return
 
     if state.state == "settings_waiting_quiet_hours":
-        separator = "-" if "-" in text else "—"
         try:
-            start_raw, end_raw = [part.strip() for part in text.split(separator, 1)]
-            start = parse_hhmm(start_raw)
-            end = parse_hhmm(end_raw)
+            start, end = parse_quiet_hours(text)
         except ValueError:
             await message.answer(t(lang, "settings.quiet_hours.invalid"))
             return
@@ -164,7 +137,13 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
 
     if state.state == "waiting_qazo_period_end":
         payload = state.payload or {}
-        start = date.fromisoformat(payload["start"])
+        # FIX: was payload["start"] — KeyError if state was lost; use .get() with graceful fallback
+        start_str = payload.get("start")
+        if not start_str:
+            await StatesRepository(session).set(current_user.id, "waiting_qazo_period_start", {})
+            await message.answer(t(lang, "qazo.period.custom_start"))
+            return
+        start = date.fromisoformat(start_str)
         try:
             end = date.fromisoformat(text)
         except ValueError:
@@ -199,8 +178,13 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
         except ValueError:
             await message.answer(t(lang, "error.number_required"))
             return
-        source_key = state.payload["source_key"]
-        prayer = state.payload["prayer"]
+        # FIX: safe .get() on payload keys
+        source_key = (state.payload or {}).get("source_key")
+        prayer = (state.payload or {}).get("prayer")
+        if not source_key or not prayer:
+            await StatesRepository(session).clear(current_user.id)
+            await message.answer(t(lang, "error.invalid_action"))
+            return
         max_count = await MissedPrayersRepository(session).count_by_prayer(
             current_user.id,
             prayer,
@@ -231,6 +215,11 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
             reply_markup=qazo_complete_success_keyboard(lang, action.id),
         )
         return
+
+    if state.state == "calc2_waiting_years":
+        handled = await handle_calc2_year_input(message, current_user, session, text)
+        if handled:
+            return
 
     if state.state.startswith("calc_waiting"):
         payload = state.payload or {}
@@ -289,6 +278,7 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
                 if end > today:
                     end = today
                 payload["end_date"] = end.isoformat()
+
         except ValueError:
             if "month" in state.state:
                 await message.answer(t(lang, "error.wrong_month"))

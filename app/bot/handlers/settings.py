@@ -23,6 +23,7 @@ from app.db.models import ReminderSetting, User
 from app.db.repositories.states import StatesRepository
 from app.db.repositories.users import UsersRepository
 from app.services.i18n import t
+from app.services.parsing import parse_hhmm, parse_time_list, parse_quiet_hours
 
 router = Router(name="settings")
 
@@ -58,38 +59,6 @@ def _status(lang: str, enabled: bool) -> str:
 
 def _fmt_time(value: time | None, fallback: str) -> str:
     return value.strftime("%H:%M") if value else fallback
-
-
-def parse_hhmm(value: str) -> time:
-    raw = value.strip()
-    parts = raw.split(":")
-    if len(parts) != 2:
-        raise ValueError("time must be HH:MM")
-
-    try:
-        hour, minute = int(parts[0]), int(parts[1])
-    except ValueError as exc:
-        raise ValueError("time must contain numbers") from exc
-
-    if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        raise ValueError("time is out of range")
-    return time(hour=hour, minute=minute)
-
-
-def parse_time_list(value: str) -> list[str]:
-    items = value.replace(";", ",").replace("\n", ",").split(",")
-    times = [parse_hhmm(item).strftime("%H:%M") for item in items if item.strip()]
-    if not times:
-        raise ValueError("empty time list")
-    return list(dict.fromkeys(times))
-
-
-def parse_quiet_hours(value: str) -> tuple[time, time]:
-    normalized = value.strip().replace("—", "-").replace("–", "-")
-    if "-" not in normalized:
-        raise ValueError("quiet hours separator is missing")
-    start_raw, end_raw = [part.strip() for part in normalized.split("-", 1)]
-    return parse_hhmm(start_raw), parse_hhmm(end_raw)
 
 
 def parse_daily_limit(value: str) -> int:

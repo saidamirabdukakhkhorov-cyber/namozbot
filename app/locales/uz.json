@@ -233,5 +233,7 @@
   "miniapp.open": "📱 Ilovani ochish",
   "miniapp.ready": "📱 Bot tayyor. Asosiy foydalanish mini app orqali bo‘ladi.\n\nNamoz vaqtlarida men faqat eslatma yuboraman.",
   "miniapp.not_configured": "Mini app linki sozlanmagan. WEBAPP_URL ni kiriting.",
-  "onboarding.done_miniapp": "✅ Rozilik qabul qilindi.\n\nEndi barcha amallar mini app ichida bo‘ladi. Bot esa faqat namoz vaqtida eslatadi."
+  "onboarding.done_miniapp": "✅ Rozilik qabul qilindi.\n\nEndi barcha amallar mini app ichida bo‘ladi. Bot esa faqat namoz vaqtida eslatadi.",
+  "reminder.motivational_line": "Bu namoz qalbingizga xotirjamlik va baraka olib kelsin. Sababsiz kechiktirmang.",
+  "prayer.witr": "Vitr"
 }
