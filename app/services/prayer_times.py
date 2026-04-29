@@ -398,18 +398,29 @@ class PrayerTimesService:
         canonical_city = _region_for_islomapi(city)
         cached = await self.repo.get(canonical_city, day)
         if cached:
-            return PrayerTimesDTO(
-                cached.city,
-                cached.prayer_date,
-                cached.timezone,
+            cached_values = (
                 cached.fajr_time,
                 cached.dhuhr_time,
                 cached.asr_time,
                 cached.maghrib_time,
                 cached.isha_time,
-                cached.raw_payload,
-                cached.source,
             )
+            # Older production rows may be incomplete after a failed migration or
+            # a provider outage. Do not return them to the Mini App as bot data;
+            # re-fetch and overwrite the cache instead.
+            if all(cached_values):
+                return PrayerTimesDTO(
+                    cached.city,
+                    cached.prayer_date,
+                    cached.timezone,
+                    cached.fajr_time,
+                    cached.dhuhr_time,
+                    cached.asr_time,
+                    cached.maghrib_time,
+                    cached.isha_time,
+                    cached.raw_payload if isinstance(cached.raw_payload, dict) else {"payload": cached.raw_payload},
+                    cached.source,
+                )
 
         dto = await self.provider.fetch(canonical_city, day, timezone_name)
         await self.repo.upsert(

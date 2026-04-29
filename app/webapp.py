@@ -149,6 +149,35 @@ async def ensure_qazo_schema(session) -> None:
     await session.execute(text("CREATE INDEX IF NOT EXISTS ix_users_city ON users (city)"))
 
     await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS user_preferences (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        language VARCHAR(5) NOT NULL DEFAULT 'uz',
+        date_format VARCHAR(20) NOT NULL DEFAULT 'YYYY-MM-DD',
+        main_menu_style VARCHAR(30) NOT NULL DEFAULT 'reply_keyboard',
+        show_daily_summary BOOLEAN NOT NULL DEFAULT true,
+        show_weekly_summary BOOLEAN NOT NULL DEFAULT true,
+        quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true,
+        quiet_hours_start TIME NOT NULL DEFAULT '23:00',
+        quiet_hours_end TIME NOT NULL DEFAULT '06:00',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'uz'"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS date_format VARCHAR(20) NOT NULL DEFAULT 'YYYY-MM-DD'"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS main_menu_style VARCHAR(30) NOT NULL DEFAULT 'reply_keyboard'"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_daily_summary BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_weekly_summary BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_user_preferences_user_id_unique ON user_preferences (user_id) WHERE user_id IS NOT NULL"))
+
+    await session.execute(text("""
     CREATE TABLE IF NOT EXISTS reminder_settings (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -163,6 +192,7 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS prayer_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
     await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
     await session.execute(text("""ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminder_times JSONB NOT NULL DEFAULT '["08:00", "21:00"]'::jsonb"""))
@@ -190,6 +220,13 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS fajr_time TIME NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS dhuhr_time TIME NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS asr_time TIME NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS maghrib_time TIME NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS isha_time TIME NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
     await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'external'"))
     await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb"))
@@ -211,6 +248,10 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_time TIMESTAMPTZ NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
     await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS snooze_until TIMESTAMPTZ NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NULL"))
@@ -239,6 +280,14 @@ async def ensure_qazo_schema(session) -> None:
         applied_at TIMESTAMPTZ NULL
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS selected_prayers JSONB NOT NULL DEFAULT '[]'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS days_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS prayers_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS total_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'calculated'"))
@@ -265,6 +314,7 @@ async def ensure_qazo_schema(session) -> None:
 
     # Self-heal older production DBs. CREATE TABLE IF NOT EXISTS does not add
     # columns to existing tables; missing columns caused HTTP 500 in Qazo.
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS mode VARCHAR(30) NOT NULL DEFAULT 'custom'"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS daily_targets JSONB NOT NULL DEFAULT '{\"fajr\":1,\"dhuhr\":1,\"asr\":1,\"maghrib\":1,\"isha\":1,\"witr\":0}'::jsonb"))
@@ -289,6 +339,10 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'"))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS source VARCHAR(30) NOT NULL DEFAULT 'manual'"))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
@@ -317,6 +371,10 @@ async def ensure_qazo_schema(session) -> None:
         undone_at TIMESTAMPTZ NULL
     )
     """))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS completed_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS missed_prayer_ids JSONB NOT NULL DEFAULT '[]'::jsonb"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS source_filter JSONB NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
@@ -578,10 +636,17 @@ async def api_get_data(request: web.Request) -> web.Response:
                     "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
                 }, status=403)
 
+            # Snapshot ORM values before any rollback. SQLAlchemy expires ORM
+            # objects on rollback; keeping primitive values prevents the Mini App
+            # from losing the bot user data after a prayer/API/DB fallback.
+            user_id = int(user.id)
+            user_name = user.full_name or user.username or "Foydalanuvchi"
+            user_lang = user.language_code or "uz"
+            city = _region_for_islomapi(user.city or "Toshkent")
+            tz = user.timezone or TASHKENT_TZ_NAME
+
             today = tashkent_today()
             now_tz = tashkent_now()
-            tz = TASHKENT_TZ_NAME
-            city = user.city or "Toshkent"
             selected_day = today
             raw_selected_day = body.get("date")
             if raw_selected_day:
@@ -615,7 +680,7 @@ async def api_get_data(request: web.Request) -> web.Response:
                 daily_repo = DailyPrayersRepository(session)
                 for prayer_name, value in dto.as_dict().items():
                     await daily_repo.upsert_pending(
-                        user_id=user.id,
+                        user_id=user_id,
                         prayer_name=prayer_name,
                         prayer_date=selected_day,
                         prayer_time=service.combine(selected_day, value, tz),
@@ -629,7 +694,7 @@ async def api_get_data(request: web.Request) -> web.Response:
             # ── Today's prayer statuses from the same table bot uses ──
             daily_rows = await session.execute(
                 select(DailyPrayer.prayer_name, DailyPrayer.status, DailyPrayer.prayer_time)
-                .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == selected_day)
+                .where(DailyPrayer.user_id == user_id, DailyPrayer.prayer_date == selected_day)
             )
             prayers = {}
             from zoneinfo import ZoneInfo
@@ -647,7 +712,7 @@ async def api_get_data(request: web.Request) -> web.Response:
             # ── Qazo counts per prayer ──
             qazo_rows = await session.execute(
                 select(MissedPrayer.prayer_name, func.count())
-                .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
+                .where(MissedPrayer.user_id == user_id, MissedPrayer.status == "active")
                 .group_by(MissedPrayer.prayer_name)
             )
             qazo = {p: 0 for p in QAZO_PRAYER_NAMES}
@@ -665,7 +730,7 @@ async def api_get_data(request: web.Request) -> web.Response:
             completed_today_rows = await session.execute(
                 select(QazoCompletionAction.prayer_name, func.coalesce(func.sum(QazoCompletionAction.completed_count), 0))
                 .where(
-                    QazoCompletionAction.user_id == user.id,
+                    QazoCompletionAction.user_id == user_id,
                     QazoCompletionAction.status == "completed",
                     QazoCompletionAction.created_at >= day_start,
                     QazoCompletionAction.created_at < day_end,
@@ -677,13 +742,13 @@ async def api_get_data(request: web.Request) -> web.Response:
                 if prayer_name in qazo_completed_today:
                     qazo_completed_today[prayer_name] = int(count or 0)
 
-            plan = await get_or_create_qazo_plan(session, user.id)
+            plan = await get_or_create_qazo_plan(session, user_id)
             await session.commit()
             qazo_plan = _qazo_plan_payload(plan, qazo, qazo_completed_today)
 
             recent_actions = list((await session.scalars(
                 select(QazoCompletionAction)
-                .where(QazoCompletionAction.user_id == user.id, QazoCompletionAction.status == "completed")
+                .where(QazoCompletionAction.user_id == user_id, QazoCompletionAction.status == "completed")
                 .order_by(QazoCompletionAction.created_at.desc())
                 .limit(30)
             )).all())
@@ -701,7 +766,7 @@ async def api_get_data(request: web.Request) -> web.Response:
 
             detail_rows = (await session.execute(
                 select(MissedPrayer.id, MissedPrayer.prayer_name, MissedPrayer.prayer_date, MissedPrayer.source, MissedPrayer.qazo_calculation_id)
-                .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
+                .where(MissedPrayer.user_id == user_id, MissedPrayer.status == "active")
                 .order_by(MissedPrayer.prayer_date.asc(), MissedPrayer.created_at.asc())
                 .limit(200)
             )).all()
@@ -711,7 +776,7 @@ async def api_get_data(request: web.Request) -> web.Response:
             ]
 
             calc_rows = list((await session.scalars(
-                select(QazoCalculation).where(QazoCalculation.user_id == user.id).order_by(QazoCalculation.created_at.desc()).limit(5)
+                select(QazoCalculation).where(QazoCalculation.user_id == user_id).order_by(QazoCalculation.created_at.desc()).limit(5)
             )).all())
             qazo_calculations = [
                 {"id": int(c.id), "start_date": c.start_date.isoformat(), "end_date": c.end_date.isoformat(), "selected_prayers": c.selected_prayers, "days_count": c.days_count, "total_count": c.total_count, "status": c.status, "created_missed_count": c.created_missed_count, "skipped_existing_count": c.skipped_existing_count}
@@ -723,21 +788,21 @@ async def api_get_data(request: web.Request) -> web.Response:
 
             prayed_count = int(await session.scalar(
                 select(func.count()).select_from(DailyPrayer)
-                .where(DailyPrayer.user_id == user.id,
+                .where(DailyPrayer.user_id == user_id,
                        DailyPrayer.status == "prayed",
                        DailyPrayer.prayer_date >= month_start)
             ) or 0)
 
             missed_count = int(await session.scalar(
                 select(func.count()).select_from(DailyPrayer)
-                .where(DailyPrayer.user_id == user.id,
+                .where(DailyPrayer.user_id == user_id,
                        DailyPrayer.status == "missed",
                        DailyPrayer.prayer_date >= month_start)
             ) or 0)
 
             completed_count = int(await session.scalar(
                 select(func.count()).select_from(MissedPrayer)
-                .where(MissedPrayer.user_id == user.id,
+                .where(MissedPrayer.user_id == user_id,
                        MissedPrayer.status == "completed",
                        MissedPrayer.completed_at >= datetime(today.year, today.month, 1, tzinfo=timezone.utc))
             ) or 0)
@@ -748,7 +813,7 @@ async def api_get_data(request: web.Request) -> web.Response:
             reminder: ReminderSetting | None = None
             try:
                 reminder = await session.scalar(
-                    select(ReminderSetting).where(ReminderSetting.user_id == user.id)
+                    select(ReminderSetting).where(ReminderSetting.user_id == user_id)
                 )
             except Exception as exc:
                 logger.warning("Could not load reminder settings for mini app: %s", exc)
@@ -756,9 +821,9 @@ async def api_get_data(request: web.Request) -> web.Response:
 
             return web.json_response({
                 "ok": True,
-                "name": user.full_name or user.username or "Foydalanuvchi",
-                "city": _region_for_islomapi(user.city or "Toshkent"),
-                "lang": user.language_code or "uz",
+                "name": user_name,
+                "city": city,
+                "lang": user_lang,
                 "prayers": prayers,
                 "prayer_times": prayer_times,   # HH:MM strings in Asia/Tashkent
                 "prayer_datetimes": prayer_iso_times,
