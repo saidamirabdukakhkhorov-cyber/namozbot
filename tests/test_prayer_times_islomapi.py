@@ -2,11 +2,13 @@ from datetime import date, time
 
 from app.services.prayer_times import (
     ExternalPrayerTimesProvider,
+    ISLOMAPI_REGIONS,
     _extract_times,
     _islomapi_api_base,
     _parse_hhmm,
     _pick_time,
     _region_for_islomapi,
+    is_supported_islomapi_region,
 )
 
 
@@ -23,6 +25,27 @@ def test_city_names_are_mapped_for_islomapi():
     assert _region_for_islomapi("Samarkand") == "Samarqand"
     assert _region_for_islomapi("Bukhara") == "Buxoro"
     assert _region_for_islomapi("Fergana") == "Farg'ona"
+    assert _region_for_islomapi("Sirdaryo") == "Guliston"
+    assert _region_for_islomapi("Xorazm") == "Urganch"
+    assert _region_for_islomapi("Surxondaryo") == "Termiz"
+    assert _region_for_islomapi("Qoraqalpogiston") == "Nukus"
+
+
+def test_all_app_selectable_regions_are_supported_for_islomapi():
+    assert len(ISLOMAPI_REGIONS) >= 13
+    for region in ISLOMAPI_REGIONS:
+        assert is_supported_islomapi_region(region)
+        url, params, source = ExternalPrayerTimesProvider._build_request(
+            "https://islomapi.uz",
+            region,
+            date(2026, 4, 28),
+            "Asia/Tashkent",
+        )
+        assert source == "islomapi_daily"
+        assert url == "https://islomapi.uz/api/daily"
+        assert params["region"] == region
+        assert params["month"] == "4"
+        assert params["day"] == "28"
 
 
 def test_islomapi_daily_request_uses_daily_endpoint_with_region_month_day():

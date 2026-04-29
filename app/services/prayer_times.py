@@ -75,30 +75,80 @@ def _pick_time(data: dict[str, Any], *keys: str) -> time:
     raise KeyError(f"Prayer time key not found. Tried: {', '.join(keys)}")
 
 
-# Bot UI stores Uzbek city names. islomapi.uz expects Uzbek Latin region names.
+# Bot UI stores Uzbek city names. islomapi.uz expects exact Uzbek Latin
+# region names. Keep this list centralized so bot, Mini App and cache use the
+# same canonical value. Unsupported custom input falls back to the stripped
+# value, but all app-selectable cities are mapped here.
+ISLOMAPI_REGIONS = (
+    "Toshkent",
+    "Andijon",
+    "Buxoro",
+    "Guliston",
+    "Jizzax",
+    "Navoiy",
+    "Namangan",
+    "Nukus",
+    "Qarshi",
+    "Samarqand",
+    "Termiz",
+    "Urganch",
+    "Farg'ona",
+)
+
 _ISLOMAPI_REGION_ALIASES = {
     "tashkent": "Toshkent",
     "toshkent": "Toshkent",
-    "samarqand": "Samarqand",
-    "samarkand": "Samarqand",
-    "buxoro": "Buxoro",
-    "bukhara": "Buxoro",
+    "toshkent shahar": "Toshkent",
+    "toshkent viloyati": "Toshkent",
     "andijon": "Andijon",
     "andijan": "Andijon",
+    "buxoro": "Buxoro",
+    "bukhara": "Buxoro",
+    "guliston": "Guliston",
+    "gulistan": "Guliston",
+    "sirdaryo": "Guliston",
+    "syrdarya": "Guliston",
+    "jizzax": "Jizzax",
+    "jizzakh": "Jizzax",
+    "djizak": "Jizzax",
+    "navoiy": "Navoiy",
+    "navoi": "Navoiy",
+    "namangan": "Namangan",
+    "nukus": "Nukus",
+    "qoraqalpog'iston": "Nukus",
+    "qoraqalpogiston": "Nukus",
+    "karakalpakstan": "Nukus",
+    "qarshi": "Qarshi",
+    "karshi": "Qarshi",
+    "qashqadaryo": "Qarshi",
+    "kashkadarya": "Qarshi",
+    "samarqand": "Samarqand",
+    "samarkand": "Samarqand",
+    "termiz": "Termiz",
+    "termez": "Termiz",
+    "surxondaryo": "Termiz",
+    "surkhandarya": "Termiz",
+    "urganch": "Urganch",
+    "urgench": "Urganch",
+    "xorazm": "Urganch",
+    "khorezm": "Urganch",
     "farg'ona": "Farg'ona",
-    "farg‘ona": "Farg'ona",
     "fargona": "Farg'ona",
     "fergana": "Farg'ona",
-    "namangan": "Namangan",
-    "qarshi": "Qarshi",
-    "nukus": "Nukus",
 }
 
 
-def _region_for_islomapi(city: str) -> str:
-    normalized = str(city).strip().lower().replace("ʻ", "'").replace("ʼ", "'")
-    return _ISLOMAPI_REGION_ALIASES.get(normalized, str(city).strip())
+def _normalize_region_key(city: str) -> str:
+    return str(city).strip().lower().replace('`', "'").replace("'", "'")
 
+
+def _region_for_islomapi(city: str) -> str:
+    normalized = _normalize_region_key(city)
+    return _ISLOMAPI_REGION_ALIASES.get(normalized, str(city).strip() or "Toshkent")
+
+
+def is_supported_islomapi_region(city: str) -> bool:
+    return _region_for_islomapi(city) in ISLOMAPI_REGIONS
 
 def _islomapi_api_base(base_url: str | None) -> str:
     """Normalize config to the islomapi API root.
@@ -278,7 +328,8 @@ class PrayerTimesService:
         self.provider = provider or ExternalPrayerTimesProvider()
 
     async def get_or_fetch(self, city: str, day: date, timezone_name: str = "Asia/Tashkent") -> PrayerTimesDTO:
-        cached = await self.repo.get(city, day)
+        canonical_city = _region_for_islomapi(city)
+        cached = await self.repo.get(canonical_city, day)
         if cached:
             return PrayerTimesDTO(
                 cached.city,
@@ -293,9 +344,9 @@ class PrayerTimesService:
                 cached.source,
             )
 
-        dto = await self.provider.fetch(city, day, timezone_name)
+        dto = await self.provider.fetch(canonical_city, day, timezone_name)
         await self.repo.upsert(
-            city=city,
+            city=canonical_city,
             prayer_date=day,
             timezone_name=timezone_name,
             fajr_time=dto.fajr_time,

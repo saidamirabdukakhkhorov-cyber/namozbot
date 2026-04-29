@@ -1,7 +1,8 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.services.i18n import t
+from app.services.prayer_times import ISLOMAPI_REGIONS
 
-CITIES = ["Toshkent", "Samarqand", "Buxoro", "Andijon", "Farg'ona", "Namangan", "Qarshi", "Nukus"]
+CITIES = list(ISLOMAPI_REGIONS)
 
 
 def city_keyboard(language: str = "uz", *, back_callback: str | None = None) -> InlineKeyboardMarkup:
