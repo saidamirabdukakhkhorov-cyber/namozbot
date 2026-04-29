@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl
 
 from aiohttp import web
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 
 from app.core.config import settings
 from app.db.models import DailyPrayer, MissedPrayer, QazoCalculation, QazoCompletionAction, QazoPlan, ReminderSetting, User
@@ -105,6 +105,51 @@ def _qazo_plan_payload(plan: QazoPlan, active_qazo: dict[str, int], completed_to
         "today_done": total_done,
         "today_left": max(0, total_target - total_done),
     }
+
+
+async def ensure_qazo_schema(session) -> None:
+    """Ensure Mini App qazo tables exist even if Alembic was not run yet."""
+    try:
+        dialect = session.get_bind().dialect.name
+    except Exception:
+        dialect = "postgresql"
+    if dialect != "postgresql":
+        return
+
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS qazo_plans (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        enabled BOOLEAN NOT NULL DEFAULT true,
+        mode VARCHAR(30) NOT NULL DEFAULT 'custom',
+        daily_targets JSONB NOT NULL DEFAULT '{"fajr":1,"dhuhr":1,"asr":1,"maghrib":1,"isha":1,"witr":0}'::jsonb,
+        preferred_times JSONB NOT NULL DEFAULT '[]'::jsonb,
+        notes TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_plans_user_enabled ON qazo_plans (user_id, enabled)'))
+
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS qazo_completion_actions (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        prayer_name VARCHAR(20) NOT NULL,
+        completed_count INTEGER NOT NULL,
+        missed_prayer_ids JSONB NOT NULL,
+        source_filter JSONB NULL,
+        start_date DATE NULL,
+        end_date DATE NULL,
+        qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'completed',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        undone_at TIMESTAMPTZ NULL
+    )
+    """))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_created ON qazo_completion_actions (user_id, created_at DESC)'))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_status ON qazo_completion_actions (user_id, status)'))
+    await session.commit()
 
 
 def tashkent_today() -> date:
@@ -300,6 +345,8 @@ async def api_get_data(request: web.Request) -> web.Response:
                 "error": "registration_required",
                 "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
             }, status=403)
+
+        await ensure_qazo_schema(session)
 
         today = tashkent_today()
         now_tz = tashkent_now()
@@ -526,6 +573,8 @@ async def api_action(request: web.Request) -> web.Response:
                 "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
             }, status=403)
 
+        await ensure_qazo_schema(session)
+
         # ── SET LANGUAGE ──
         if action == "set_lang":
             lang = body.get("lang", "")
@@ -678,9 +727,10 @@ async def api_action(request: web.Request) -> web.Response:
                     return web.json_response({"error": "no active qazo"}, status=400)
                 actual_count = min(count, available)
                 try:
-                    await repo.complete_oldest(user_id=user.id, prayer_name=prayer, count=actual_count)
+                    completion_action = await repo.complete_oldest(user_id=user.id, prayer_name=prayer, count=actual_count)
+                    remaining = await repo.count_by_prayer(user.id, prayer)
                     await session.commit()
-                    return web.json_response({"ok": True, "completed": actual_count, "prayer": prayer})
+                    return web.json_response({"ok": True, "completed": actual_count, "prayer": prayer, "action_id": int(completion_action.id), "active_remaining": remaining})
                 except ValueError as e:
                     return web.json_response({"error": str(e)}, status=400)
 

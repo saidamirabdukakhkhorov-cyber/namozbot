@@ -13,7 +13,7 @@ class MissedPrayersRepository(BaseRepository):
         if end_date: stmt = stmt.where(MissedPrayer.prayer_date <= end_date)
         if sources: stmt = stmt.where(MissedPrayer.source.in_(list(sources)))
         if qazo_calculation_id: stmt = stmt.where(MissedPrayer.qazo_calculation_id == qazo_calculation_id)
-        rows = (await self.session.execute(stmt.group_by(MissedPrayer.prayer_name))).all(); result = {"fajr":0,"dhuhr":0,"asr":0,"maghrib":0,"isha":0}
+        rows = (await self.session.execute(stmt.group_by(MissedPrayer.prayer_name))).all(); result = {"fajr":0,"dhuhr":0,"asr":0,"maghrib":0,"isha":0,"witr":0}
         for prayer, count in rows: result[prayer] = int(count)
         return result
     async def total_active(self, user_id: int, sources=None):
@@ -33,7 +33,7 @@ class MissedPrayersRepository(BaseRepository):
         if len(rows) < count: raise ValueError(f"Only {len(rows)} active qazo rows available")
         ids = [r.id for r in rows]; now = datetime.now(timezone.utc)
         await self.session.execute(update(MissedPrayer).where(MissedPrayer.id.in_(ids)).values(status="completed", completed_at=now, updated_at=now))
-        action = QazoCompletionAction(user_id=user_id, prayer_name=prayer_name, completed_count=len(ids), missed_prayer_ids=ids, source_filter=list(sources) if sources else None, status="completed")
+        action = QazoCompletionAction(user_id=user_id, prayer_name=prayer_name, completed_count=len(ids), missed_prayer_ids=ids, source_filter=list(sources) if sources else None, status="completed", created_at=now)
         self.session.add(action); await self.session.flush(); return action
     async def undo_completion_action(self, user_id: int, action_id: int):
         action = await self.session.get(QazoCompletionAction, action_id)
