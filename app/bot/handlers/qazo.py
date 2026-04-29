@@ -19,7 +19,7 @@ from app.bot.keyboards.qazo import (
     qazo_overview_keyboard,
     qazo_period_keyboard,
 )
-from app.core.constants import ALL_QAZO_SOURCES, CURRENT_QAZO_SOURCES, PRAYER_NAMES, QAZO_PRAYER_NAMES
+from app.core.constants import ALL_QAZO_SOURCES, CURRENT_QAZO_SOURCES, PRAYER_NAMES
 from app.db.models import User
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.qazo_calculations import QazoCalculationsRepository
@@ -64,7 +64,6 @@ async def render_qazo_overview(user: User, session, *, start: date | None = None
         start, end = current_month_range()
         label = t(lang, "period.this_month")
     repo = MissedPrayersRepository(session)
-    # Use QAZO_PRAYER_NAMES so witr is included
     current = await repo.summary(user.id, start, end, CURRENT_QAZO_SOURCES)
     calculator = await repo.total_active(user.id, ["calculator"])
     current_total = sum(current.values())
@@ -84,16 +83,13 @@ async def render_qazo_overview(user: User, session, *, start: date | None = None
     lines = [
         t(lang, "qazo.list.title"),
         "",
-        # FIX: removed duplicate f"{start} — {end}" line — was appearing twice
         t(lang, "qazo.list.period", period=label or f"{start} — {end}"),
         "",
         t(lang, "qazo.list.active_count", count=current_total),
         "",
     ]
-    for p in QAZO_PRAYER_NAMES:  # FIX: use QAZO_PRAYER_NAMES so witr shows
-        cnt = current.get(p, 0)
-        if cnt > 0:
-            lines.append(f"{prayer_label(lang, p)}: {cnt} ta")
+    for p in PRAYER_NAMES:
+        lines.append(f"{prayer_label(lang, p)}: {current.get(p, 0)} ta")
     lines += ["", t(lang, "qazo.list.calculator_active", count=calculator)]
     return "\n".join(lines), False
 
@@ -143,10 +139,8 @@ async def qazo_calculator_section(callback: CallbackQuery, current_user: User, s
         await send_or_edit(callback, text, qazo_calculator_section_keyboard(lang, empty=True))
         return
     lines = [t(lang, "qazo.calculator.title"), "", t(lang, "qazo.calculator.active_intro"), ""]
-    for p in QAZO_PRAYER_NAMES:
-        cnt = counts.get(p, 0)
-        if cnt > 0:
-            lines.append(f"{prayer_label(lang, p)}: {cnt} ta")
+    for p in PRAYER_NAMES:
+        lines.append(f"{prayer_label(lang, p)}: {counts.get(p, 0)} ta")
     lines += ["", t(lang, "qazo.calculator.total", count=total)]
     await send_or_edit(callback, "\n".join(lines), qazo_calculator_section_keyboard(lang))
 
@@ -169,14 +163,9 @@ async def qazo_all(callback: CallbackQuery, current_user: User, session):
     lang = current_user.language_code or "uz"
     counts = await MissedPrayersRepository(session).summary(current_user.id)
     lines = [t(lang, "qazo.all.title"), ""]
-    for p in QAZO_PRAYER_NAMES:
-        cnt = counts.get(p, 0)
-        if cnt > 0:
-            lines.append(f"{prayer_label(lang, p)}: {cnt} ta")
-    total = sum(counts.values())
-    if total == 0:
-        lines.append(t(lang, "qazo.list.empty"))
-    lines += ["", t(lang, "qazo.calculator.total", count=total)]
+    for p in PRAYER_NAMES:
+        lines.append(f"{prayer_label(lang, p)}: {counts.get(p, 0)} ta")
+    lines += ["", t(lang, "qazo.calculator.total", count=sum(counts.values()))]
     await send_or_edit(callback, "\n".join(lines), qazo_overview_keyboard(lang))
 
 
@@ -186,7 +175,7 @@ async def qazo_back(callback: CallbackQuery, current_user: User, session):
     await send_or_edit(callback, text, qazo_overview_keyboard(current_user.language_code, empty=empty))
 
 
-@router.message(text_is_one_of("➕ Qazo qo'shish", "➕ Добавить каза", "➕ Add missed prayer", "Qazo qo'shish", "Добавить каза", "Add missed prayer"))
+@router.message(text_is_one_of("➕ Qazo qo'shish", "➕ Qazo qo‘shish", "➕ Добавить каза", "➕ Add missed prayer", "Qazo qo'shish", "Qazo qo‘shish", "Добавить каза", "Add missed prayer"))
 @router.callback_query(F.data == "qazo_add:start")
 async def qazo_add_start(event: Message | CallbackQuery, current_user: User, session):
     await StatesRepository(session).set(current_user.id, "qazo_add_date", {})
@@ -241,7 +230,6 @@ async def qazo_add_confirm(callback: CallbackQuery, current_user: User, session)
     prayer = callback.data.split(":", 1)[1]
     state = await StatesRepository(session).get(current_user.id)
     payload = state.payload if state else {}
-    # FIX: was date.fromisoformat(payload.get("date")) — None crashes fromisoformat
     day_str = payload.get("date")
     if not day_str:
         await StatesRepository(session).set(current_user.id, "qazo_add_date", {})
@@ -281,7 +269,6 @@ async def qazo_complete_source(callback: CallbackQuery, current_user: User, sess
 @router.callback_query(F.data.startswith("qazo_complete_prayer:"))
 async def qazo_complete_prayer(callback: CallbackQuery, current_user: User, session):
     lang = current_user.language_code or "uz"
-    # FIX: safe split with validation to avoid ValueError on unexpected callback data
     parts = callback.data.split(":")
     if len(parts) != 3:
         await callback.answer(t(lang, "error.invalid_action"), show_alert=True)
@@ -301,18 +288,12 @@ async def qazo_complete_prayer(callback: CallbackQuery, current_user: User, sess
 @router.callback_query(F.data.startswith("qazo_complete_count:"))
 async def qazo_complete_count(callback: CallbackQuery, current_user: User, session):
     lang = current_user.language_code or "uz"
-    # FIX: safe split with validation
-    parts = callback.data.split(":")
-    if len(parts) != 4:
-        await callback.answer(t(lang, "error.invalid_action"), show_alert=True)
-        return
-    _, source_key, prayer, raw_count = parts
+    _, source_key, prayer, raw_count = callback.data.split(":")
     try:
         count = int(raw_count)
         action = await MissedPrayersRepository(session).complete_oldest(current_user.id, prayer, count, source_values(source_key))
-    except ValueError:
-        # FIX: was showing raw English error to user — now shows localized message
-        await callback.answer(t(lang, "error.count_too_large", prayer=prayer_label(lang, prayer), max=count), show_alert=True)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
         return
     remaining = await MissedPrayersRepository(session).count_by_prayer(current_user.id, prayer, source_values(source_key))
     total = await MissedPrayersRepository(session).total_active(current_user.id)
@@ -331,12 +312,7 @@ async def qazo_complete_count(callback: CallbackQuery, current_user: User, sessi
 @router.callback_query(F.data.startswith("qazo_complete_custom:"))
 async def qazo_complete_custom(callback: CallbackQuery, current_user: User, session):
     lang = current_user.language_code or "uz"
-    # FIX: safe split
-    parts = callback.data.split(":")
-    if len(parts) != 3:
-        await callback.answer(t(lang, "error.invalid_action"), show_alert=True)
-        return
-    _, source_key, prayer = parts
+    _, source_key, prayer = callback.data.split(":")
     await StatesRepository(session).set(current_user.id, "waiting_qazo_complete_count", {"source_key": source_key, "prayer": prayer})
     await send_or_edit(callback, t(lang, "qazo.completion.manual_prompt", prayer=prayer_label(lang, prayer)))
 

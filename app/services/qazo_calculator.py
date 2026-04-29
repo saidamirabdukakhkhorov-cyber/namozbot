@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-from app.core.constants import QAZO_PRAYER_NAMES
-from app.db.models import MissedPrayer
+from app.core.constants import PRAYER_NAMES
 from app.services.timezone import tashkent_today
 
 
@@ -27,8 +24,8 @@ class QazoCalculatorService:
 
     @staticmethod
     def _normalize_prayers(selected_prayers: list[str]) -> list[str]:
-        selected_set = {p for p in selected_prayers if p in QAZO_PRAYER_NAMES}
-        return [p for p in QAZO_PRAYER_NAMES if p in selected_set]
+        selected_set = {p for p in selected_prayers if p in PRAYER_NAMES}
+        return [p for p in PRAYER_NAMES if p in selected_set]
 
     def calculate(self, start_date: date, end_date: date, selected_prayers: list[str]) -> QazoCalculationPreview:
         today = tashkent_today()
@@ -67,45 +64,22 @@ class QazoCalculatorService:
         preview = self.calculate(start_date, end_date, selected_prayers)
         created = {p: 0 for p in preview.selected_prayers}
         skipped = {p: 0 for p in preview.selected_prayers}
-
-        # FIX: bulk INSERT instead of N×M individual queries
-        # Build all rows at once
-        rows = []
         day = start_date
+
         while day <= end_date:
             for prayer in preview.selected_prayers:
-                rows.append({
-                    "user_id": user_id,
-                    "prayer_name": prayer,
-                    "prayer_date": day,
-                    "status": "active",
-                    "source": "calculator",
-                    "qazo_calculation_id": calculation_id,
-                })
+                _, ok = await self.missed_repo.create(
+                    user_id=user_id,
+                    prayer_name=prayer,
+                    prayer_date=day,
+                    source="calculator",
+                    qazo_calculation_id=calculation_id,
+                )
+                if ok:
+                    created[prayer] += 1
+                else:
+                    skipped[prayer] += 1
             day += timedelta(days=1)
-
-        if not rows:
-            await self.calculations_repo.mark_applied(calculation_id, created, skipped)
-            return created, skipped
-
-        # Batch upsert: on conflict (active unique) do nothing
-        stmt = (
-            pg_insert(MissedPrayer)
-            .values(rows)
-            .on_conflict_do_nothing(
-                index_elements=["user_id", "prayer_name", "prayer_date"],
-                index_where=(MissedPrayer.status == "active"),
-            )
-            .returning(MissedPrayer.prayer_name)
-        )
-        result = await self.missed_repo.session.execute(stmt)
-        inserted_prayers = [row[0] for row in result.fetchall()]
-
-        # Count created vs skipped per prayer
-        for p in preview.selected_prayers:
-            created[p] = inserted_prayers.count(p)
-            total_expected = preview.breakdown[p]
-            skipped[p] = total_expected - created[p]
 
         await self.calculations_repo.mark_applied(calculation_id, created, skipped)
         return created, skipped

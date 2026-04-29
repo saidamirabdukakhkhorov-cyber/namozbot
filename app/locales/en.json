@@ -233,7 +233,5 @@
   "miniapp.open": "📱 Open app",
   "miniapp.ready": "📱 The bot is ready. Main usage is now through the Mini App.\n\nIn Telegram, I will only send prayer-time reminders.",
   "miniapp.not_configured": "Mini App link is not configured. Set WEBAPP_URL.",
-  "onboarding.done_miniapp": "✅ Consent accepted.\n\nAll actions now happen in the Mini App. The bot will only send prayer-time reminders.",
-  "reminder.motivational_line": "May this prayer bring calm and barakah. Try not to delay it without a reason.",
-  "prayer.witr": "Witr"
+  "onboarding.done_miniapp": "✅ Consent accepted.\n\nAll actions now happen in the Mini App. The bot will only send prayer-time reminders."
 }

@@ -61,7 +61,6 @@ async def choose_language(callback: CallbackQuery, current_user: User, session, 
 
     if state and state.state == "settings_language":
         await StatesRepository(session).clear(current_user.id)
-        # FIX: was sending the message twice — edit_text OR answer, then answer again
         try:
             await callback.message.edit_text(t(language, "settings.language.updated"))
         except Exception:

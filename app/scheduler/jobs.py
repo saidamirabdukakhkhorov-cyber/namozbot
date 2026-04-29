@@ -25,8 +25,11 @@ PRAYER_CHECK_DELAY_MINUTES = 30
 
 
 def _motivational_line(language: str) -> str:
-    # FIX: use i18n system instead of hardcoded strings
-    return t(language, "reminder.motivational_line")
+    if language == "ru":
+        return "Пусть этот намаз станет причиной спокойствия и баракята. Не откладывайте его без причины."
+    if language == "en":
+        return "May this prayer bring calm and barakah. Try not to delay it without a reason."
+    return "Bu namoz qalbingizga xotirjamlik va baraka olib kelsin. Sababsiz kechiktirmang."
 
 
 def _format_prayer_time_push(language: str, daily: DailyPrayer) -> str:
