@@ -202,28 +202,11 @@ async def api_get_data(request: web.Request) -> web.Response:
         user: User | None = await session.scalar(
             select(User).where(User.telegram_id == telegram_id)
         )
-        if not user:
-            # New user — return empty defaults
+        if not user or not user.onboarding_completed:
             return web.json_response({
-                "name": "Foydalanuvchi",
-                "city": "Toshkent",
-                "lang": "uz",
-                "prayers": {},
-                "prayer_times": {},
-                "prayer_datetimes": {},
-                "can_mark": {},
-                "minutes_until": {},
-                "qazo": {p: 0 for p in PRAYER_NAMES},
-                "qazo_details": [],
-                "qazo_calculations": [],
-                "stats": {"prayed": 0, "missed": 0, "completed": 0, "active": 0},
-                "settings": {"prayer_reminders": True, "qazo_reminders": True},
-                "today": tashkent_today().isoformat(),
-                "current_time": tashkent_now().strftime("%H:%M"),
-                "current_datetime": tashkent_now().isoformat(),
-                "next_prayer": None,
-                "timezone": TASHKENT_TZ_NAME,
-            })
+                "error": "registration_required",
+                "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
+            }, status=403)
 
         today = tashkent_today()
         now_tz = tashkent_now()
@@ -398,8 +381,12 @@ async def api_action(request: web.Request) -> web.Response:
         user: User | None = await session.scalar(
             select(User).where(User.telegram_id == telegram_id)
         )
-        if not user:
-            return web.json_response({"error": "user not found"}, status=404)
+        if not user or not user.onboarding_completed:
+            return web.json_response({
+                "ok": False,
+                "error": "registration_required",
+                "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
+            }, status=403)
 
         # ── SET LANGUAGE ──
         if action == "set_lang":
@@ -420,14 +407,19 @@ async def api_action(request: web.Request) -> web.Response:
             reminder: ReminderSetting | None = await session.scalar(
                 select(ReminderSetting).where(ReminderSetting.user_id == user.id)
             )
-            if reminder:
-                setting_type = body.get("type", "")
-                value = bool(body.get("value", True))
-                if setting_type == "prayer":
-                    reminder.prayer_reminders_enabled = value
-                elif setting_type == "qazo":
-                    reminder.qazo_reminders_enabled = value
-                await session.commit()
+            if not reminder:
+                reminder = ReminderSetting(user_id=user.id)
+                session.add(reminder)
+                await session.flush()
+            setting_type = body.get("type", "")
+            value = bool(body.get("value", True))
+            if setting_type == "prayer":
+                reminder.prayer_reminders_enabled = value
+            elif setting_type == "qazo":
+                reminder.qazo_reminders_enabled = value
+            else:
+                return web.json_response({"ok": False, "message": "unknown setting"}, status=400)
+            await session.commit()
 
         # ── QAZO CALCULATOR PREVIEW ──
         elif action == "calculate_qazo":
