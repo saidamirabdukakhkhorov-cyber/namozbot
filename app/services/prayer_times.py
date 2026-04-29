@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Any, Protocol
@@ -37,14 +38,18 @@ class PrayerTimesProvider(Protocol):
 
 def _parse_hhmm(value: Any) -> time:
     """Parse provider time values like '05:14', '5:14' or '05:14 (+05)'."""
-    text = str(value).strip()
+    text = str(value or "").strip()
     match = re.search(r"(?P<hour>\d{1,2}):(?P<minute>\d{2})", text)
     if not match:
         raise ValueError(f"Invalid prayer time value: {value!r}")
-    return time(hour=int(match.group("hour")), minute=int(match.group("minute")))
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    if hour > 23 or minute > 59:
+        raise ValueError(f"Prayer time is out of range: {value!r}")
+    return time(hour=hour, minute=minute)
 
 
-def _extract_times(payload: dict[str, Any]) -> dict[str, Any]:
+def _extract_times(payload: dict[str, Any] | list[Any]) -> dict[str, Any]:
     """Extract prayer timings from islomapi.uz-compatible payloads.
 
     Supported shapes:
@@ -52,6 +57,8 @@ def _extract_times(payload: dict[str, Any]) -> dict[str, Any]:
     - wrapped: {data: {times: {...}}}
     - generic: a flat dict with fajr/dhuhr/asr/maghrib/isha keys
     """
+    if not isinstance(payload, dict):
+        return {}
     if isinstance(payload.get("times"), dict):
         return payload["times"]
 
@@ -65,20 +72,18 @@ def _extract_times(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _pick_time(data: dict[str, Any], *keys: str) -> time:
-    lower_map = {str(key).lower(): value for key, value in data.items()}
+    lower_map = {str(key).lower(): value for key, value in (data or {}).items()}
     for key in keys:
-        value = data.get(key)
+        value = (data or {}).get(key)
         if value is None:
             value = lower_map.get(key.lower())
-        if value:
+        if value not in (None, ""):
             return _parse_hhmm(value)
     raise KeyError(f"Prayer time key not found. Tried: {', '.join(keys)}")
 
 
-# Bot UI stores Uzbek city names. islomapi.uz expects exact Uzbek Latin
-# region names. Keep this list centralized so bot, Mini App and cache use the
-# same canonical value. Unsupported custom input falls back to the stripped
-# value, but all app-selectable cities are mapped here.
+# islomapi.uz expects exact Uzbek Latin region names. Keep this list centralized
+# so bot, Mini App and cache use the same canonical value.
 ISLOMAPI_REGIONS = (
     "Toshkent",
     "Andijon",
@@ -100,55 +105,80 @@ _ISLOMAPI_REGION_ALIASES = {
     "toshkent": "Toshkent",
     "toshkent shahar": "Toshkent",
     "toshkent viloyati": "Toshkent",
+    "ташкент": "Toshkent",
     "andijon": "Andijon",
     "andijan": "Andijon",
+    "андижон": "Andijon",
     "buxoro": "Buxoro",
     "bukhara": "Buxoro",
+    "бухоро": "Buxoro",
     "guliston": "Guliston",
     "gulistan": "Guliston",
     "sirdaryo": "Guliston",
     "syrdarya": "Guliston",
+    "сирдарё": "Guliston",
     "jizzax": "Jizzax",
     "jizzakh": "Jizzax",
     "djizak": "Jizzax",
+    "жиззах": "Jizzax",
     "navoiy": "Navoiy",
     "navoi": "Navoiy",
+    "навоий": "Navoiy",
     "namangan": "Namangan",
+    "наманган": "Namangan",
     "nukus": "Nukus",
     "qoraqalpog'iston": "Nukus",
     "qoraqalpogiston": "Nukus",
     "karakalpakstan": "Nukus",
+    "қорақалпоғистон": "Nukus",
     "qarshi": "Qarshi",
     "karshi": "Qarshi",
     "qashqadaryo": "Qarshi",
     "kashkadarya": "Qarshi",
+    "қарши": "Qarshi",
     "samarqand": "Samarqand",
     "samarkand": "Samarqand",
+    "самарқанд": "Samarqand",
     "termiz": "Termiz",
     "termez": "Termiz",
     "surxondaryo": "Termiz",
     "surkhandarya": "Termiz",
+    "термиз": "Termiz",
     "urganch": "Urganch",
     "urgench": "Urganch",
     "xorazm": "Urganch",
     "khorezm": "Urganch",
+    "урганч": "Urganch",
     "farg'ona": "Farg'ona",
     "fargona": "Farg'ona",
     "fergana": "Farg'ona",
+    "фарғона": "Farg'ona",
+    "фаргона": "Farg'ona",
 }
 
 
 def _normalize_region_key(city: str) -> str:
-    return str(city).strip().lower().replace('`', "'").replace("'", "'")
+    text = unicodedata.normalize("NFKC", str(city or "")).strip().lower()
+    text = text.replace("’", "'").replace("‘", "'").replace("`", "'").replace("ʼ", "'").replace("ʻ", "'")
+    text = text.replace("-", " ").replace("_", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text
 
 
 def _region_for_islomapi(city: str) -> str:
     normalized = _normalize_region_key(city)
-    return _ISLOMAPI_REGION_ALIASES.get(normalized, str(city).strip() or "Toshkent")
+    if normalized in _ISLOMAPI_REGION_ALIASES:
+        return _ISLOMAPI_REGION_ALIASES[normalized]
+    # Normalize exact canonical values that may include curly apostrophes.
+    for region in ISLOMAPI_REGIONS:
+        if _normalize_region_key(region) == normalized:
+            return region
+    return "Toshkent"
 
 
 def is_supported_islomapi_region(city: str) -> bool:
     return _region_for_islomapi(city) in ISLOMAPI_REGIONS
+
 
 def _islomapi_api_base(base_url: str | None) -> str:
     """Normalize config to the islomapi API root.
@@ -196,21 +226,36 @@ def _parse_islomapi_date(row: dict[str, Any], *, fallback_year: int, fallback_mo
     if raw is None:
         return None
     if isinstance(raw, int):
-        return date(fallback_year, fallback_month, raw)
+        try:
+            return date(fallback_year, fallback_month, raw)
+        except ValueError:
+            return None
 
     text = str(raw).strip()
-    # Common islomapi shape is DD.MM.YYYY or DD.MM.
+    # islomapi shape is often YYYY-MM-DDT... or DD.MM.YYYY.
+    iso_match = re.search(r"(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})", text)
+    if iso_match:
+        try:
+            return date(int(iso_match.group("year")), int(iso_match.group("month")), int(iso_match.group("day")))
+        except ValueError:
+            return None
+
     match = re.search(r"(?P<day>\d{1,2})[.\-/](?P<month>\d{1,2})(?:[.\-/](?P<year>\d{4}))?", text)
     if match:
-        return date(
-            int(match.group("year") or fallback_year),
-            int(match.group("month")),
-            int(match.group("day")),
-        )
+        try:
+            return date(
+                int(match.group("year") or fallback_year),
+                int(match.group("month")),
+                int(match.group("day")),
+            )
+        except ValueError:
+            return None
 
-    # Some wrappers may only return the day number as a string.
     if text.isdigit():
-        return date(fallback_year, fallback_month, int(text))
+        try:
+            return date(fallback_year, fallback_month, int(text))
+        except ValueError:
+            return None
     return None
 
 
@@ -220,54 +265,76 @@ class ExternalPrayerTimesProvider:
     Daily endpoint:
     GET https://islomapi.uz/api/daily?region=Toshkent&month=4&day=28
 
-    Monthly endpoint helper:
+    Monthly endpoint helper/fallback:
     GET https://islomapi.uz/api/monthly?region=Toshkent&month=4
     """
 
     async def fetch(self, city: str, day: date, timezone_name: str) -> PrayerTimesDTO:
-        base_url = settings.prayer_api_base_url.rstrip("/")
-        if not base_url:
-            raise RuntimeError("PRAYER_API_BASE_URL is not configured")
+        base_url = settings.prayer_api_base_url.rstrip("/") or "https://islomapi.uz"
+        daily_exc: Exception | None = None
+        try:
+            url, params, source = self._build_request(base_url, city, day, timezone_name)
+            payload = await self._get_json(url, params)
+            data = _extract_times(payload)
+            return self._dto_from_times(
+                city=_region_for_islomapi(city),
+                prayer_date=day,
+                timezone_name=timezone_name,
+                data=data,
+                raw_payload=payload if isinstance(payload, dict) else {"payload": payload},
+                source=source,
+            )
+        except Exception as exc:
+            daily_exc = exc
 
-        url, params, source = self._build_request(base_url, city, day, timezone_name)
+        # Daily can fail for provider-side reasons. Monthly usually has the same
+        # data and gives us a safe fallback without switching providers.
+        try:
+            month_rows = await self.fetch_monthly(city, day.month, day.year, timezone_name)
+            for dto in month_rows:
+                if dto.prayer_date.day == day.day:
+                    payload = dict(dto.raw_payload or {})
+                    payload.setdefault("fallback_from", "daily")
+                    payload.setdefault("daily_error", str(daily_exc))
+                    return PrayerTimesDTO(
+                        city=dto.city,
+                        prayer_date=day,
+                        timezone=dto.timezone,
+                        fajr_time=dto.fajr_time,
+                        dhuhr_time=dto.dhuhr_time,
+                        asr_time=dto.asr_time,
+                        maghrib_time=dto.maghrib_time,
+                        isha_time=dto.isha_time,
+                        raw_payload=payload,
+                        source="islomapi_monthly_fallback",
+                    )
+        except Exception:
+            pass
+        raise daily_exc or RuntimeError("Prayer times provider failed")
+
+    async def _get_json(self, url: str, params: dict[str, str]) -> Any:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=15) as resp:
                 resp.raise_for_status()
-                payload = await resp.json()
-
-        data = _extract_times(payload)
-        return self._dto_from_times(
-            city=city,
-            prayer_date=day,
-            timezone_name=timezone_name,
-            data=data,
-            raw_payload=payload,
-            source=source,
-        )
+                return await resp.json(content_type=None)
 
     async def fetch_monthly(self, city: str, month: int, year: int, timezone_name: str) -> list[PrayerTimesDTO]:
-        """Fetch and parse a whole month from islomapi.uz.
-
-        The current bot fetches single days for reminders, but this method keeps the
-        provider ready for monthly prefetching without changing database schema.
-        """
-        base_url = settings.prayer_api_base_url.rstrip("/")
+        base_url = settings.prayer_api_base_url.rstrip("/") or "https://islomapi.uz"
         url, params, source = self._build_monthly_request(base_url, city, month)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=15) as resp:
-                resp.raise_for_status()
-                payload = await resp.json()
-
+        payload = await self._get_json(url, params)
         rows = _extract_monthly_rows(payload)
         result: list[PrayerTimesDTO] = []
         for row in rows:
             row_date = _parse_islomapi_date(row, fallback_year=year, fallback_month=month)
             if row_date is None:
                 continue
+            # islomapi does not accept a year parameter, so force cache key/date to
+            # the requested year while keeping the provider payload intact.
+            row_date = date(year, row_date.month, row_date.day)
             data = _extract_times(row)
             result.append(
                 self._dto_from_times(
-                    city=city,
+                    city=_region_for_islomapi(city),
                     prayer_date=row_date,
                     timezone_name=timezone_name,
                     data=data,
@@ -288,7 +355,7 @@ class ExternalPrayerTimesProvider:
         source: str,
     ) -> PrayerTimesDTO:
         return PrayerTimesDTO(
-            city=city,
+            city=_region_for_islomapi(city),
             prayer_date=prayer_date,
             timezone=timezone_name,
             fajr_time=_pick_time(data, "tong_saharlik", "bomdod", "fajr", "Fajr", "tong"),

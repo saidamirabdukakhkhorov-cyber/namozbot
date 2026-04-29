@@ -22,7 +22,7 @@ from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.users import UsersRepository
 from app.db.repositories.prayer_times import PrayerTimesRepository
 from app.db.repositories.qazo_calculations import QazoCalculationsRepository
-from app.services.prayer_times import PrayerTimesService, _extract_times, _parse_hhmm
+from app.services.prayer_times import ISLOMAPI_REGIONS, PrayerTimesService, _extract_times, _parse_hhmm, _region_for_islomapi
 from app.db.session import AsyncSessionLocal
 from app.services.timezone import TASHKENT_TIMEZONE, tashkent_now
 
@@ -116,6 +116,84 @@ async def ensure_qazo_schema(session) -> None:
     if dialect != "postgresql":
         return
 
+    # Core Mini App tables/columns. Production can be on an older DB if
+    # migrations were skipped, so the web app self-heals instead of returning
+    # HTTP 500 to users.
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS prayer_times (
+        id BIGSERIAL PRIMARY KEY,
+        city VARCHAR(120) NOT NULL,
+        prayer_date DATE NOT NULL,
+        timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent',
+        fajr_time TIME NOT NULL,
+        dhuhr_time TIME NOT NULL,
+        asr_time TIME NOT NULL,
+        maghrib_time TIME NOT NULL,
+        isha_time TIME NOT NULL,
+        source VARCHAR(40) NOT NULL DEFAULT 'external',
+        raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'external'"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_prayer_times_city_date ON prayer_times (city, prayer_date)'))
+
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS daily_prayers (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        prayer_name VARCHAR(20) NOT NULL,
+        prayer_date DATE NOT NULL,
+        prayer_time TIMESTAMPTZ NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        snooze_until TIMESTAMPTZ NULL,
+        answered_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS snooze_until TIMESTAMPTZ NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_date ON daily_prayers (user_id, prayer_date)'))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_status ON daily_prayers (user_id, status)'))
+
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS qazo_calculations (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        selected_prayers JSONB NOT NULL,
+        days_count INTEGER NOT NULL,
+        prayers_count INTEGER NOT NULL,
+        total_count INTEGER NOT NULL,
+        breakdown JSONB NOT NULL,
+        created_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb,
+        skipped_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb,
+        status VARCHAR(20) NOT NULL DEFAULT 'calculated',
+        created_missed_count INTEGER NOT NULL DEFAULT 0,
+        skipped_existing_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        applied_at TIMESTAMPTZ NULL
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'calculated'"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_missed_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_existing_count INTEGER NOT NULL DEFAULT 0"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NULL"))
+    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_calc_user_created ON qazo_calculations (user_id, created_at)'))
+
     await session.execute(text("""
     CREATE TABLE IF NOT EXISTS qazo_plans (
         id BIGSERIAL PRIMARY KEY,
@@ -141,6 +219,22 @@ async def ensure_qazo_schema(session) -> None:
     await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
     await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
 
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS missed_prayers (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        prayer_name VARCHAR(20) NOT NULL,
+        prayer_date DATE NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        source VARCHAR(30) NOT NULL DEFAULT 'manual',
+        daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL,
+        qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL,
+        completed_at TIMESTAMPTZ NULL,
+        cancelled_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS source VARCHAR(30) NOT NULL DEFAULT 'manual'"))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL"))
     await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
@@ -250,6 +344,55 @@ def _minutes_until(prayer_time: datetime | None, now: datetime | None = None) ->
         prayer_time = prayer_time.replace(tzinfo=timezone.utc)
     delta = prayer_time.astimezone(now.tzinfo) - now
     return max(0, int(delta.total_seconds() // 60))
+
+
+def _miniapp_error_payload(message: str | None = None) -> dict:
+    """Safe response used when data loading hits an unexpected backend error.
+
+    Telegram Mini App should not show raw HTTP 500. The UI can render this
+    payload and show a friendly retry message while logs still keep details.
+    """
+    today = tashkent_today()
+    now_tz = tashkent_now()
+    empty_qazo = {p: 0 for p in QAZO_PRAYER_NAMES}
+    return {
+        "ok": False,
+        "error": "server_error",
+        "message": "Ma'lumotlarni yuklashda xato bo'ldi. Iltimos, qayta urinib ko'ring.",
+        "debug_message": message if _dev_mode() else None,
+        "name": "Foydalanuvchi",
+        "city": "Toshkent",
+        "lang": "uz",
+        "prayers": {},
+        "prayer_times": {},
+        "prayer_datetimes": {},
+        "can_mark": {},
+        "minutes_until": {},
+        "next_prayer": None,
+        "current_time": now_tz.strftime("%H:%M"),
+        "current_datetime": now_tz.isoformat(),
+        "qazo": empty_qazo,
+        "qazo_completed_today": empty_qazo.copy(),
+        "qazo_plan": {
+            "enabled": True,
+            "mode": "balanced",
+            "daily_targets": _default_qazo_targets(),
+            "tasks": {p: {"target": 0, "done": 0, "left": 0, "active": 0} for p in QAZO_PRAYER_NAMES},
+            "today_target": 0,
+            "today_done": 0,
+            "today_left": 0,
+        },
+        "qazo_history": [],
+        "qazo_details": [],
+        "qazo_calculations": [],
+        "stats": {"prayed": 0, "missed": 0, "completed": 0, "active": 0},
+        "settings": {"prayer_reminders": True, "qazo_reminders": True},
+        "today": today.isoformat(),
+        "selected_date": today.isoformat(),
+        "is_today": True,
+        "timezone": TASHKENT_TZ_NAME,
+        "cities": list(ISLOMAPI_REGIONS),
+    }
 
 
 async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date: date) -> DailyPrayer:
@@ -365,217 +508,227 @@ async def api_get_data(request: web.Request) -> web.Response:
     if not telegram_id:
         return web.json_response({"error": "unauthorized"}, status=401)
 
-    async with AsyncSessionLocal() as session:
-        user: User | None = await session.scalar(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        if not user or not user.onboarding_completed:
-            return web.json_response({
-                "error": "registration_required",
-                "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
-            }, status=403)
-
-        await ensure_qazo_schema(session)
-
-        today = tashkent_today()
-        now_tz = tashkent_now()
-        tz = TASHKENT_TZ_NAME
-        city = user.city or "Toshkent"
-        selected_day = today
-        raw_selected_day = body.get("date")
-        if raw_selected_day:
-            try:
-                selected_day = date.fromisoformat(str(raw_selected_day))
-            except ValueError:
-                selected_day = today
-        if selected_day > today:
-            selected_day = today
-        is_today = selected_day == today
-
-        # ── Authoritative prayer times for Mini App and bot sync ──
-        prayer_times: dict[str, str] = {}
-        prayer_iso_times: dict[str, str] = {}
-        can_mark: dict[str, bool] = {}
-        minutes_until: dict[str, int | None] = {}
-        try:
-            service = PrayerTimesService(PrayerTimesRepository(session))
-            dto = await service.get_or_fetch(city, selected_day, tz)
-            for name, value in dto.as_dict().items():
-                prayer_times[name] = value.strftime("%H:%M")
-                prayer_iso_times[name] = _time_to_local_iso(selected_day, value, tz)
-
-            sunrise = _extract_sunrise_time(dto.raw_payload)
-            if sunrise:
-                prayer_times["sunrise"] = sunrise.strftime("%H:%M")
-                prayer_iso_times["sunrise"] = _time_to_local_iso(selected_day, sunrise, tz)
-
-            # Opening the Mini App ensures selected-day rows exist in the same table the bot reads.
-            daily_repo = DailyPrayersRepository(session)
-            for prayer_name, value in dto.as_dict().items():
-                await daily_repo.upsert_pending(
-                    user_id=user.id,
-                    prayer_name=prayer_name,
-                    prayer_date=selected_day,
-                    prayer_time=service.combine(selected_day, value, tz),
-                )
-            await session.commit()
-        except Exception as exc:
-            logger.warning("Could not load exact prayer times for mini app: %s", exc)
-
-        # ── Today's prayer statuses from the same table bot uses ──
-        daily_rows = await session.execute(
-            select(DailyPrayer.prayer_name, DailyPrayer.status, DailyPrayer.prayer_time)
-            .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == selected_day)
-        )
-        prayers = {}
-        from zoneinfo import ZoneInfo
-        for prayer_name, status, prayer_time in daily_rows:
-            prayers[prayer_name] = status
-            if prayer_time and prayer_name not in prayer_times:
-                local_time = prayer_time.astimezone(ZoneInfo(tz))
-                prayer_times[prayer_name] = local_time.strftime("%H:%M")
-                prayer_iso_times[prayer_name] = local_time.isoformat()
-            can_mark[prayer_name] = (not is_today) or _is_prayer_due(prayer_time, now_tz)
-            minutes_until[prayer_name] = _minutes_until(prayer_time, now_tz) if is_today else 0
-
-        next_prayer = _build_next_prayer(prayer_times, now_tz) if is_today else None
-
-        # ── Qazo counts per prayer ──
-        qazo_rows = await session.execute(
-            select(MissedPrayer.prayer_name, func.count())
-            .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
-            .group_by(MissedPrayer.prayer_name)
-        )
-        qazo = {p: 0 for p in QAZO_PRAYER_NAMES}
-        for prayer_name, count in qazo_rows:
-            if prayer_name in qazo:
-                qazo[prayer_name] = int(count)
-
-        total_active = sum(qazo.values())
-
-        # ── Qazo plan and today's qazo completion progress ──
-        from zoneinfo import ZoneInfo
-        tzinfo = ZoneInfo(tz)
-        day_start = datetime.combine(today, time.min, tzinfo=tzinfo).astimezone(timezone.utc)
-        day_end = datetime.combine(today + timedelta(days=1), time.min, tzinfo=tzinfo).astimezone(timezone.utc)
-        completed_today_rows = await session.execute(
-            select(QazoCompletionAction.prayer_name, func.coalesce(func.sum(QazoCompletionAction.completed_count), 0))
-            .where(
-                QazoCompletionAction.user_id == user.id,
-                QazoCompletionAction.status == "completed",
-                QazoCompletionAction.created_at >= day_start,
-                QazoCompletionAction.created_at < day_end,
+    try:
+        async with AsyncSessionLocal() as session:
+            user: User | None = await session.scalar(
+                select(User).where(User.telegram_id == telegram_id)
             )
-            .group_by(QazoCompletionAction.prayer_name)
-        )
-        qazo_completed_today = {p: 0 for p in QAZO_PRAYER_NAMES}
-        for prayer_name, count in completed_today_rows:
-            if prayer_name in qazo_completed_today:
-                qazo_completed_today[prayer_name] = int(count or 0)
+            if not user or not user.onboarding_completed:
+                return web.json_response({
+                    "error": "registration_required",
+                    "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
+                }, status=403)
 
-        plan = await get_or_create_qazo_plan(session, user.id)
-        await session.commit()
-        qazo_plan = _qazo_plan_payload(plan, qazo, qazo_completed_today)
+            await ensure_qazo_schema(session)
 
-        recent_actions = list((await session.scalars(
-            select(QazoCompletionAction)
-            .where(QazoCompletionAction.user_id == user.id, QazoCompletionAction.status == "completed")
-            .order_by(QazoCompletionAction.created_at.desc())
-            .limit(30)
-        )).all())
-        qazo_history = [
-            {
-                "id": int(a.id),
-                "prayer": a.prayer_name,
-                "label": PRAYER_LABELS.get(a.prayer_name, a.prayer_name),
-                "count": int(a.completed_count),
-                "created_at": a.created_at.astimezone(tzinfo).isoformat() if a.created_at else None,
-                "date": a.created_at.astimezone(tzinfo).date().isoformat() if a.created_at else None,
-            }
-            for a in recent_actions
-        ]
+            today = tashkent_today()
+            now_tz = tashkent_now()
+            tz = TASHKENT_TZ_NAME
+            city = user.city or "Toshkent"
+            selected_day = today
+            raw_selected_day = body.get("date")
+            if raw_selected_day:
+                try:
+                    selected_day = date.fromisoformat(str(raw_selected_day))
+                except ValueError:
+                    selected_day = today
+            if selected_day > today:
+                selected_day = today
+            is_today = selected_day == today
 
-        detail_rows = (await session.execute(
-            select(MissedPrayer.id, MissedPrayer.prayer_name, MissedPrayer.prayer_date, MissedPrayer.source, MissedPrayer.qazo_calculation_id)
-            .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
-            .order_by(MissedPrayer.prayer_date.asc(), MissedPrayer.created_at.asc())
-            .limit(200)
-        )).all()
-        qazo_details = [
-            {"id": int(row_id), "prayer": prayer_name, "label": PRAYER_LABELS.get(prayer_name, prayer_name), "date": prayer_date.isoformat(), "source": source or "manual", "calculation_id": qazo_calculation_id}
-            for row_id, prayer_name, prayer_date, source, qazo_calculation_id in detail_rows
-        ]
+            # ── Authoritative prayer times for Mini App and bot sync ──
+            prayer_times: dict[str, str] = {}
+            prayer_iso_times: dict[str, str] = {}
+            can_mark: dict[str, bool] = {}
+            minutes_until: dict[str, int | None] = {}
+            prayer_error: str | None = None
+            try:
+                service = PrayerTimesService(PrayerTimesRepository(session))
+                dto = await service.get_or_fetch(city, selected_day, tz)
+                for name, value in dto.as_dict().items():
+                    prayer_times[name] = value.strftime("%H:%M")
+                    prayer_iso_times[name] = _time_to_local_iso(selected_day, value, tz)
 
-        calc_rows = list((await session.scalars(
-            select(QazoCalculation).where(QazoCalculation.user_id == user.id).order_by(QazoCalculation.created_at.desc()).limit(5)
-        )).all())
-        qazo_calculations = [
-            {"id": int(c.id), "start_date": c.start_date.isoformat(), "end_date": c.end_date.isoformat(), "selected_prayers": c.selected_prayers, "days_count": c.days_count, "total_count": c.total_count, "status": c.status, "created_missed_count": c.created_missed_count, "skipped_existing_count": c.skipped_existing_count}
-            for c in calc_rows
-        ]
+                sunrise = _extract_sunrise_time(dto.raw_payload)
+                if sunrise:
+                    prayer_times["sunrise"] = sunrise.strftime("%H:%M")
+                    prayer_iso_times["sunrise"] = _time_to_local_iso(selected_day, sunrise, tz)
 
-        # ── Monthly stats ──
-        month_start = date(today.year, today.month, 1)
+                # Opening the Mini App ensures selected-day rows exist in the same table the bot reads.
+                daily_repo = DailyPrayersRepository(session)
+                for prayer_name, value in dto.as_dict().items():
+                    await daily_repo.upsert_pending(
+                        user_id=user.id,
+                        prayer_name=prayer_name,
+                        prayer_date=selected_day,
+                        prayer_time=service.combine(selected_day, value, tz),
+                    )
+                await session.commit()
+            except Exception as exc:
+                prayer_error = str(exc)
+                logger.warning("Could not load exact prayer times for mini app: %s", exc)
+                await session.rollback()
 
-        prayed_count = int(await session.scalar(
-            select(func.count()).select_from(DailyPrayer)
-            .where(DailyPrayer.user_id == user.id,
-                   DailyPrayer.status == "prayed",
-                   DailyPrayer.prayer_date >= month_start)
-        ) or 0)
+            # ── Today's prayer statuses from the same table bot uses ──
+            daily_rows = await session.execute(
+                select(DailyPrayer.prayer_name, DailyPrayer.status, DailyPrayer.prayer_time)
+                .where(DailyPrayer.user_id == user.id, DailyPrayer.prayer_date == selected_day)
+            )
+            prayers = {}
+            from zoneinfo import ZoneInfo
+            for prayer_name, status, prayer_time in daily_rows:
+                prayers[prayer_name] = status
+                if prayer_time and prayer_name not in prayer_times:
+                    local_time = prayer_time.astimezone(ZoneInfo(tz))
+                    prayer_times[prayer_name] = local_time.strftime("%H:%M")
+                    prayer_iso_times[prayer_name] = local_time.isoformat()
+                can_mark[prayer_name] = (not is_today) or _is_prayer_due(prayer_time, now_tz)
+                minutes_until[prayer_name] = _minutes_until(prayer_time, now_tz) if is_today else 0
 
-        missed_count = int(await session.scalar(
-            select(func.count()).select_from(DailyPrayer)
-            .where(DailyPrayer.user_id == user.id,
-                   DailyPrayer.status == "missed",
-                   DailyPrayer.prayer_date >= month_start)
-        ) or 0)
+            next_prayer = _build_next_prayer(prayer_times, now_tz) if is_today else None
 
-        completed_count = int(await session.scalar(
-            select(func.count()).select_from(MissedPrayer)
-            .where(MissedPrayer.user_id == user.id,
-                   MissedPrayer.status == "completed",
-                   MissedPrayer.completed_at >= datetime(today.year, today.month, 1, tzinfo=timezone.utc))
-        ) or 0)
+            # ── Qazo counts per prayer ──
+            qazo_rows = await session.execute(
+                select(MissedPrayer.prayer_name, func.count())
+                .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
+                .group_by(MissedPrayer.prayer_name)
+            )
+            qazo = {p: 0 for p in QAZO_PRAYER_NAMES}
+            for prayer_name, count in qazo_rows:
+                if prayer_name in qazo:
+                    qazo[prayer_name] = int(count)
 
-        # ── Reminder settings ──
-        reminder: ReminderSetting | None = await session.scalar(
-            select(ReminderSetting).where(ReminderSetting.user_id == user.id)
-        )
+            total_active = sum(qazo.values())
 
-        return web.json_response({
-            "name": user.full_name or user.username or "Foydalanuvchi",
-            "city": user.city or "Toshkent",
-            "lang": user.language_code or "uz",
-            "prayers": prayers,
-            "prayer_times": prayer_times,   # HH:MM strings in Asia/Tashkent
-            "prayer_datetimes": prayer_iso_times,
-            "can_mark": can_mark,
-            "minutes_until": minutes_until,
-            "next_prayer": next_prayer,
-            "current_time": now_tz.strftime("%H:%M"),
-            "current_datetime": now_tz.isoformat(),
-            "qazo": qazo,
-            "qazo_completed_today": qazo_completed_today,
-            "qazo_plan": qazo_plan,
-            "qazo_history": qazo_history,
-            "qazo_details": qazo_details,
-            "qazo_calculations": qazo_calculations,
-            "stats": {
-                "prayed": prayed_count,
-                "missed": missed_count,
-                "completed": completed_count,
-                "active": total_active,
-            },
-            "settings": {
-                "prayer_reminders": reminder.prayer_reminders_enabled if reminder else True,
-                "qazo_reminders": reminder.qazo_reminders_enabled if reminder else True,
-            },
-            "today": today.isoformat(),
-            "selected_date": selected_day.isoformat(),
-            "is_today": is_today,
-            "timezone": TASHKENT_TZ_NAME,
-        })
+            # ── Qazo plan and today's qazo completion progress ──
+            from zoneinfo import ZoneInfo
+            tzinfo = ZoneInfo(tz)
+            day_start = datetime.combine(today, time.min, tzinfo=tzinfo).astimezone(timezone.utc)
+            day_end = datetime.combine(today + timedelta(days=1), time.min, tzinfo=tzinfo).astimezone(timezone.utc)
+            completed_today_rows = await session.execute(
+                select(QazoCompletionAction.prayer_name, func.coalesce(func.sum(QazoCompletionAction.completed_count), 0))
+                .where(
+                    QazoCompletionAction.user_id == user.id,
+                    QazoCompletionAction.status == "completed",
+                    QazoCompletionAction.created_at >= day_start,
+                    QazoCompletionAction.created_at < day_end,
+                )
+                .group_by(QazoCompletionAction.prayer_name)
+            )
+            qazo_completed_today = {p: 0 for p in QAZO_PRAYER_NAMES}
+            for prayer_name, count in completed_today_rows:
+                if prayer_name in qazo_completed_today:
+                    qazo_completed_today[prayer_name] = int(count or 0)
+
+            plan = await get_or_create_qazo_plan(session, user.id)
+            await session.commit()
+            qazo_plan = _qazo_plan_payload(plan, qazo, qazo_completed_today)
+
+            recent_actions = list((await session.scalars(
+                select(QazoCompletionAction)
+                .where(QazoCompletionAction.user_id == user.id, QazoCompletionAction.status == "completed")
+                .order_by(QazoCompletionAction.created_at.desc())
+                .limit(30)
+            )).all())
+            qazo_history = [
+                {
+                    "id": int(a.id),
+                    "prayer": a.prayer_name,
+                    "label": PRAYER_LABELS.get(a.prayer_name, a.prayer_name),
+                    "count": int(a.completed_count),
+                    "created_at": a.created_at.astimezone(tzinfo).isoformat() if a.created_at else None,
+                    "date": a.created_at.astimezone(tzinfo).date().isoformat() if a.created_at else None,
+                }
+                for a in recent_actions
+            ]
+
+            detail_rows = (await session.execute(
+                select(MissedPrayer.id, MissedPrayer.prayer_name, MissedPrayer.prayer_date, MissedPrayer.source, MissedPrayer.qazo_calculation_id)
+                .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active")
+                .order_by(MissedPrayer.prayer_date.asc(), MissedPrayer.created_at.asc())
+                .limit(200)
+            )).all()
+            qazo_details = [
+                {"id": int(row_id), "prayer": prayer_name, "label": PRAYER_LABELS.get(prayer_name, prayer_name), "date": prayer_date.isoformat(), "source": source or "manual", "calculation_id": qazo_calculation_id}
+                for row_id, prayer_name, prayer_date, source, qazo_calculation_id in detail_rows
+            ]
+
+            calc_rows = list((await session.scalars(
+                select(QazoCalculation).where(QazoCalculation.user_id == user.id).order_by(QazoCalculation.created_at.desc()).limit(5)
+            )).all())
+            qazo_calculations = [
+                {"id": int(c.id), "start_date": c.start_date.isoformat(), "end_date": c.end_date.isoformat(), "selected_prayers": c.selected_prayers, "days_count": c.days_count, "total_count": c.total_count, "status": c.status, "created_missed_count": c.created_missed_count, "skipped_existing_count": c.skipped_existing_count}
+                for c in calc_rows
+            ]
+
+            # ── Monthly stats ──
+            month_start = date(today.year, today.month, 1)
+
+            prayed_count = int(await session.scalar(
+                select(func.count()).select_from(DailyPrayer)
+                .where(DailyPrayer.user_id == user.id,
+                       DailyPrayer.status == "prayed",
+                       DailyPrayer.prayer_date >= month_start)
+            ) or 0)
+
+            missed_count = int(await session.scalar(
+                select(func.count()).select_from(DailyPrayer)
+                .where(DailyPrayer.user_id == user.id,
+                       DailyPrayer.status == "missed",
+                       DailyPrayer.prayer_date >= month_start)
+            ) or 0)
+
+            completed_count = int(await session.scalar(
+                select(func.count()).select_from(MissedPrayer)
+                .where(MissedPrayer.user_id == user.id,
+                       MissedPrayer.status == "completed",
+                       MissedPrayer.completed_at >= datetime(today.year, today.month, 1, tzinfo=timezone.utc))
+            ) or 0)
+
+            # ── Reminder settings ──
+            reminder: ReminderSetting | None = await session.scalar(
+                select(ReminderSetting).where(ReminderSetting.user_id == user.id)
+            )
+
+            return web.json_response({
+                "ok": True,
+                "name": user.full_name or user.username or "Foydalanuvchi",
+                "city": _region_for_islomapi(user.city or "Toshkent"),
+                "lang": user.language_code or "uz",
+                "prayers": prayers,
+                "prayer_times": prayer_times,   # HH:MM strings in Asia/Tashkent
+                "prayer_datetimes": prayer_iso_times,
+                "can_mark": can_mark,
+                "minutes_until": minutes_until,
+                "next_prayer": next_prayer,
+                "current_time": now_tz.strftime("%H:%M"),
+                "current_datetime": now_tz.isoformat(),
+                "qazo": qazo,
+                "qazo_completed_today": qazo_completed_today,
+                "qazo_plan": qazo_plan,
+                "qazo_history": qazo_history,
+                "qazo_details": qazo_details,
+                "qazo_calculations": qazo_calculations,
+                "stats": {
+                    "prayed": prayed_count,
+                    "missed": missed_count,
+                    "completed": completed_count,
+                    "active": total_active,
+                },
+                "settings": {
+                    "prayer_reminders": reminder.prayer_reminders_enabled if reminder else True,
+                    "qazo_reminders": reminder.qazo_reminders_enabled if reminder else True,
+                },
+                "today": today.isoformat(),
+                "selected_date": selected_day.isoformat(),
+                "is_today": is_today,
+                "timezone": TASHKENT_TZ_NAME,
+                "cities": list(ISLOMAPI_REGIONS),
+                "prayer_error": prayer_error,
+            })
+    except Exception as exc:
+        logger.exception("miniapp_data_failed: %s", exc)
+        return web.json_response(_miniapp_error_payload(str(exc)), status=200)
 
 
 async def api_action(request: web.Request) -> web.Response:
@@ -591,239 +744,247 @@ async def api_action(request: web.Request) -> web.Response:
 
     action = body.get("action", "")
 
-    async with AsyncSessionLocal() as session:
-        user: User | None = await session.scalar(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        if not user or not user.onboarding_completed:
-            return web.json_response({
-                "ok": False,
-                "error": "registration_required",
-                "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
-            }, status=403)
+    try:
+        async with AsyncSessionLocal() as session:
+            user: User | None = await session.scalar(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            if not user or not user.onboarding_completed:
+                return web.json_response({
+                    "ok": False,
+                    "error": "registration_required",
+                    "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
+                }, status=403)
 
-        await ensure_qazo_schema(session)
+            await ensure_qazo_schema(session)
 
-        # ── SET LANGUAGE ──
-        if action == "set_lang":
-            lang = body.get("lang", "")
-            if lang in ("uz", "ru", "en"):
-                await UsersRepository(session).set_language(user.id, lang)
-                await session.commit()
+            # ── SET LANGUAGE ──
+            if action == "set_lang":
+                lang = body.get("lang", "")
+                if lang in ("uz", "ru", "en"):
+                    await UsersRepository(session).set_language(user.id, lang)
+                    await session.commit()
+                    return web.json_response({"ok": True, "lang": lang})
+                return web.json_response({"ok": False, "message": "unknown language"}, status=400)
 
-        # ── SET CITY ──
-        elif action == "set_city":
-            city = (body.get("city") or "").strip()[:100]
-            if city:
+            # ── SET CITY ──
+            elif action == "set_city":
+                city = _region_for_islomapi((body.get("city") or "Toshkent").strip()[:100])
                 await UsersRepository(session).set_city(user.id, city)
                 await session.commit()
+                return web.json_response({"ok": True, "city": city})
 
-        # ── TOGGLE REMINDERS ──
-        elif action == "set_setting":
-            reminder: ReminderSetting | None = await session.scalar(
-                select(ReminderSetting).where(ReminderSetting.user_id == user.id)
-            )
-            if not reminder:
-                reminder = ReminderSetting(user_id=user.id)
-                session.add(reminder)
-                await session.flush()
-            setting_type = body.get("type", "")
-            value = bool(body.get("value", True))
-            if setting_type == "prayer":
-                reminder.prayer_reminders_enabled = value
-            elif setting_type == "qazo":
-                reminder.qazo_reminders_enabled = value
-            else:
-                return web.json_response({"ok": False, "message": "unknown setting"}, status=400)
-            await session.commit()
-
-        # ── SAVE QAZO PLAN ──
-        elif action == "save_qazo_plan":
-            try:
-                plan = await get_or_create_qazo_plan(session, user.id)
-                targets = _normalize_qazo_targets(body.get("daily_targets") or {})
-                mode = str(body.get("mode") or "custom")[:30]
-                enabled = bool(body.get("enabled", True))
-                plan.mode = mode if mode in ("balanced", "focus", "custom", "flexible") else "custom"
-                plan.enabled = enabled
-                plan.daily_targets = targets
-                await session.commit()
-                return web.json_response({"ok": True, "plan": {"enabled": plan.enabled, "mode": plan.mode, "daily_targets": targets}})
-            except Exception as exc:
-                logger.exception("save_qazo_plan failed for user %s: %s", user.id, exc)
-                await session.rollback()
-                return web.json_response({"ok": False, "message": str(exc)}, status=500)
-
-        # ── UNDO QAZO COMPLETION ──
-        elif action == "undo_qazo_completion":
-            try:
-                action_id = int(body.get("action_id"))
-            except Exception:
-                return web.json_response({"ok": False, "message": "Noto‘g‘ri amal"}, status=400)
-            restored = await MissedPrayersRepository(session).undo_completion_action(user.id, action_id)
-            if not restored:
-                return web.json_response({"ok": False, "message": "Bekor qilib bo‘lmadi"}, status=400)
-            await session.commit()
-            return web.json_response({"ok": True})
-
-        # ── QAZO CALCULATOR PREVIEW ──
-        elif action == "calculate_qazo":
-            today = tashkent_today()
-            start_date = _parse_date(body.get("start_date"), today)
-            end_date = _parse_date(body.get("end_date"), today)
-            if end_date > today:
-                end_date = today
-            if start_date > end_date:
-                return web.json_response({"ok": False, "message": "Boshlanish sanasi tugash sanasidan katta bo‘lmasin"}, status=400)
-            selected = [prayer for prayer in (body.get("prayers") or []) if prayer in QAZO_PRAYER_NAMES]
-            if not selected:
-                return web.json_response({"ok": False, "message": "Kamida bitta namozni tanlang"}, status=400)
-            days_count = _date_range_days(start_date, end_date)
-            if days_count > 36500:
-                return web.json_response({"ok": False, "message": "Oraliq juda katta"}, status=400)
-            breakdown = _calculate_qazo_breakdown(start_date, end_date, selected)
-            existing_rows = await session.execute(
-                select(MissedPrayer.prayer_name, func.count())
-                .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active", MissedPrayer.prayer_date >= start_date, MissedPrayer.prayer_date <= end_date, MissedPrayer.prayer_name.in_(selected))
-                .group_by(MissedPrayer.prayer_name)
-            )
-            existing = {prayer: 0 for prayer in selected}
-            for prayer_name, count in existing_rows:
-                existing[prayer_name] = int(count)
-            created = {prayer: max(0, breakdown[prayer] - existing.get(prayer, 0)) for prayer in selected}
-            return web.json_response({"ok": True, "start_date": start_date.isoformat(), "end_date": end_date.isoformat(), "days_count": days_count, "breakdown": breakdown, "existing_breakdown": existing, "created_breakdown": created, "total_count": sum(breakdown.values()), "will_create_count": sum(created.values()), "skipped_existing_count": sum(existing.values())})
-
-        # ── QAZO CALCULATOR APPLY ──
-        elif action == "apply_qazo_calculation":
-            today = tashkent_today()
-            start_date = _parse_date(body.get("start_date"), today)
-            end_date = _parse_date(body.get("end_date"), today)
-            if end_date > today:
-                end_date = today
-            if start_date > end_date:
-                return web.json_response({"ok": False, "message": "Sana oralig‘i noto‘g‘ri"}, status=400)
-            selected = [prayer for prayer in (body.get("prayers") or []) if prayer in QAZO_PRAYER_NAMES]
-            if not selected:
-                return web.json_response({"ok": False, "message": "Kamida bitta namozni tanlang"}, status=400)
-            days_count = _date_range_days(start_date, end_date)
-            if days_count > 36500:
-                return web.json_response({"ok": False, "message": "Oraliq juda katta"}, status=400)
-            breakdown = _calculate_qazo_breakdown(start_date, end_date, selected)
-            calc_repo = QazoCalculationsRepository(session)
-            calc = await calc_repo.create_calculated(user_id=user.id, start_date=start_date, end_date=end_date, selected_prayers=selected, days_count=days_count, breakdown=breakdown)
-            created_breakdown = {prayer: 0 for prayer in selected}
-            skipped_breakdown = {prayer: 0 for prayer in selected}
-            current_day = start_date
-            while current_day <= end_date:
-                for prayer in selected:
-                    _, created = await create_missed_prayer_if_absent(session, user_id=user.id, prayer_name=prayer, prayer_date=current_day, source="calculator", qazo_calculation_id=calc.id)
-                    if created:
-                        created_breakdown[prayer] += 1
-                    else:
-                        skipped_breakdown[prayer] += 1
-                current_day = current_day + timedelta(days=1)
-            await calc_repo.mark_applied(calc.id, created_breakdown, skipped_breakdown)
-            await session.commit()
-            return web.json_response({"ok": True, "calculation_id": int(calc.id), "created_breakdown": created_breakdown, "skipped_breakdown": skipped_breakdown, "created_count": sum(created_breakdown.values()), "skipped_count": sum(skipped_breakdown.values())})
-
-        # ── ADD QAZO ──
-        elif action == "add_qazo":
-            prayer = body.get("prayer", "")
-            raw_date = body.get("date", str(tashkent_today()))
-            if prayer in QAZO_PRAYER_NAMES:
-                try:
-                    prayer_date = date.fromisoformat(raw_date)
-                except ValueError:
-                    prayer_date = tashkent_today()
-                if prayer_date > tashkent_today():
-                    return web.json_response({"error": "future date"}, status=400)
-                _, created = await create_missed_prayer_if_absent(
-                    session,
-                    user_id=user.id,
-                    prayer_name=prayer,
-                    prayer_date=prayer_date,
-                    source="manual",
+            # ── TOGGLE REMINDERS ──
+            elif action == "set_setting":
+                reminder: ReminderSetting | None = await session.scalar(
+                    select(ReminderSetting).where(ReminderSetting.user_id == user.id)
                 )
-                if prayer_date == tashkent_today() and prayer in DAILY_PRAYER_NAMES:
-                    daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
-                    await DailyPrayersRepository(session).set_status(daily.id, "missed")
+                if not reminder:
+                    reminder = ReminderSetting(user_id=user.id)
+                    session.add(reminder)
+                    await session.flush()
+                setting_type = body.get("type", "")
+                value = bool(body.get("value", True))
+                if setting_type == "prayer":
+                    reminder.prayer_reminders_enabled = value
+                elif setting_type == "qazo":
+                    reminder.qazo_reminders_enabled = value
+                else:
+                    return web.json_response({"ok": False, "message": "unknown setting"}, status=400)
                 await session.commit()
-                return web.json_response({"ok": True, "created": created})
+                return web.json_response({"ok": True, "type": setting_type, "value": value})
 
-        # ── COMPLETE QAZO (mark 1 as done) ──
-        elif action == "complete_qazo":
-            prayer = body.get("prayer", "")
-            try:
-                count = max(1, min(int(body.get("count", 1) or 1), 99))
-            except Exception:
-                count = 1
-            if prayer in QAZO_PRAYER_NAMES:
-                repo = MissedPrayersRepository(session)
+            # ── SAVE QAZO PLAN ──
+            elif action == "save_qazo_plan":
                 try:
-                    available = await repo.count_by_prayer(user.id, prayer)
-                    if available <= 0:
-                        return web.json_response({"ok": False, "message": "Ado qilinmagan qazo qolmagan"}, status=400)
-                    actual_count = min(count, available)
-                    completion_action = await repo.complete_oldest(user_id=user.id, prayer_name=prayer, count=actual_count)
-                    remaining = await repo.count_by_prayer(user.id, prayer)
+                    plan = await get_or_create_qazo_plan(session, user.id)
+                    targets = _normalize_qazo_targets(body.get("daily_targets") or {})
+                    mode = str(body.get("mode") or "custom")[:30]
+                    enabled = bool(body.get("enabled", True))
+                    plan.mode = mode if mode in ("balanced", "focus", "custom", "flexible") else "custom"
+                    plan.enabled = enabled
+                    plan.daily_targets = targets
                     await session.commit()
-                    return web.json_response({"ok": True, "completed": actual_count, "prayer": prayer, "action_id": int(completion_action.id), "active_remaining": remaining})
-                except ValueError as e:
-                    await session.rollback()
-                    return web.json_response({"ok": False, "message": str(e)}, status=400)
+                    return web.json_response({"ok": True, "plan": {"enabled": plan.enabled, "mode": plan.mode, "daily_targets": targets}})
                 except Exception as exc:
-                    logger.exception("complete_qazo failed for user %s prayer %s: %s", user.id, prayer, exc)
+                    logger.exception("save_qazo_plan failed for user %s: %s", user.id, exc)
                     await session.rollback()
-                    return web.json_response({"ok": False, "message": "Qazo ado qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring."}, status=500)
+                    return web.json_response({"ok": False, "message": str(exc)}, status=200)
 
-        # ── UPDATE TODAY'S PRAYER STATUS ──
-        elif action == "set_prayer_status":
-            prayer = body.get("prayer", "")
-            status = body.get("status", "")
-            if prayer not in DAILY_PRAYER_NAMES or status not in ("prayed", "missed", "pending"):
-                return web.json_response({"error": "invalid params"}, status=400)
+            # ── UNDO QAZO COMPLETION ──
+            elif action == "undo_qazo_completion":
+                try:
+                    action_id = int(body.get("action_id"))
+                except Exception:
+                    return web.json_response({"ok": False, "message": "Noto‘g‘ri amal"}, status=400)
+                restored = await MissedPrayersRepository(session).undo_completion_action(user.id, action_id)
+                if not restored:
+                    return web.json_response({"ok": False, "message": "Bekor qilib bo‘lmadi"}, status=400)
+                await session.commit()
+                return web.json_response({"ok": True})
 
-            today = tashkent_today()
-            raw_date = body.get("date", today.isoformat())
-            try:
-                prayer_date = date.fromisoformat(str(raw_date))
-            except ValueError:
-                prayer_date = today
-            if prayer_date > today:
-                return web.json_response({"error": "future_date", "message": "Kelajakdagi kunni belgilab bo‘lmaydi"}, status=400)
-            daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
-            if prayer_date == today and status in ("prayed", "missed") and not _is_prayer_due(daily.prayer_time, tashkent_now()):
-                return web.json_response({"error": "future_prayer", "message": "Bu namoz vaqti hali kirmagan"}, status=400)
-
-            repo = DailyPrayersRepository(session)
-            await repo.set_status(daily.id, status)
-
-            if status == "missed":
-                await create_missed_prayer_if_absent(
-                    session,
-                    user_id=user.id,
-                    prayer_name=prayer,
-                    prayer_date=prayer_date,
-                    source="daily_confirmation",
-                    daily_prayer_id=daily.id,
+            # ── QAZO CALCULATOR PREVIEW ──
+            elif action == "calculate_qazo":
+                today = tashkent_today()
+                start_date = _parse_date(body.get("start_date"), today)
+                end_date = _parse_date(body.get("end_date"), today)
+                if end_date > today:
+                    end_date = today
+                if start_date > end_date:
+                    return web.json_response({"ok": False, "message": "Boshlanish sanasi tugash sanasidan katta bo‘lmasin"}, status=400)
+                selected = [prayer for prayer in (body.get("prayers") or []) if prayer in QAZO_PRAYER_NAMES]
+                if not selected:
+                    return web.json_response({"ok": False, "message": "Kamida bitta namozni tanlang"}, status=400)
+                days_count = _date_range_days(start_date, end_date)
+                if days_count > 36500:
+                    return web.json_response({"ok": False, "message": "Oraliq juda katta"}, status=400)
+                breakdown = _calculate_qazo_breakdown(start_date, end_date, selected)
+                existing_rows = await session.execute(
+                    select(MissedPrayer.prayer_name, func.count())
+                    .where(MissedPrayer.user_id == user.id, MissedPrayer.status == "active", MissedPrayer.prayer_date >= start_date, MissedPrayer.prayer_date <= end_date, MissedPrayer.prayer_name.in_(selected))
+                    .group_by(MissedPrayer.prayer_name)
                 )
-            elif status == "prayed":
-                # If the user changes an earlier "missed" status to "prayed",
-                # remove the qazo row that was created by daily confirmation.
-                await session.execute(
-                    delete(MissedPrayer).where(
-                        MissedPrayer.user_id == user.id,
-                        MissedPrayer.prayer_name == prayer,
-                        MissedPrayer.prayer_date == prayer_date,
-                        MissedPrayer.status == "active",
-                        MissedPrayer.source == "daily_confirmation",
+                existing = {prayer: 0 for prayer in selected}
+                for prayer_name, count in existing_rows:
+                    existing[prayer_name] = int(count)
+                created = {prayer: max(0, breakdown[prayer] - existing.get(prayer, 0)) for prayer in selected}
+                return web.json_response({"ok": True, "start_date": start_date.isoformat(), "end_date": end_date.isoformat(), "days_count": days_count, "breakdown": breakdown, "existing_breakdown": existing, "created_breakdown": created, "total_count": sum(breakdown.values()), "will_create_count": sum(created.values()), "skipped_existing_count": sum(existing.values())})
+
+            # ── QAZO CALCULATOR APPLY ──
+            elif action == "apply_qazo_calculation":
+                today = tashkent_today()
+                start_date = _parse_date(body.get("start_date"), today)
+                end_date = _parse_date(body.get("end_date"), today)
+                if end_date > today:
+                    end_date = today
+                if start_date > end_date:
+                    return web.json_response({"ok": False, "message": "Sana oralig‘i noto‘g‘ri"}, status=400)
+                selected = [prayer for prayer in (body.get("prayers") or []) if prayer in QAZO_PRAYER_NAMES]
+                if not selected:
+                    return web.json_response({"ok": False, "message": "Kamida bitta namozni tanlang"}, status=400)
+                days_count = _date_range_days(start_date, end_date)
+                if days_count > 36500:
+                    return web.json_response({"ok": False, "message": "Oraliq juda katta"}, status=400)
+                breakdown = _calculate_qazo_breakdown(start_date, end_date, selected)
+                calc_repo = QazoCalculationsRepository(session)
+                calc = await calc_repo.create_calculated(user_id=user.id, start_date=start_date, end_date=end_date, selected_prayers=selected, days_count=days_count, breakdown=breakdown)
+                created_breakdown = {prayer: 0 for prayer in selected}
+                skipped_breakdown = {prayer: 0 for prayer in selected}
+                current_day = start_date
+                while current_day <= end_date:
+                    for prayer in selected:
+                        _, created = await create_missed_prayer_if_absent(session, user_id=user.id, prayer_name=prayer, prayer_date=current_day, source="calculator", qazo_calculation_id=calc.id)
+                        if created:
+                            created_breakdown[prayer] += 1
+                        else:
+                            skipped_breakdown[prayer] += 1
+                    current_day = current_day + timedelta(days=1)
+                await calc_repo.mark_applied(calc.id, created_breakdown, skipped_breakdown)
+                await session.commit()
+                return web.json_response({"ok": True, "calculation_id": int(calc.id), "created_breakdown": created_breakdown, "skipped_breakdown": skipped_breakdown, "created_count": sum(created_breakdown.values()), "skipped_count": sum(skipped_breakdown.values())})
+
+            # ── ADD QAZO ──
+            elif action == "add_qazo":
+                prayer = body.get("prayer", "")
+                raw_date = body.get("date", str(tashkent_today()))
+                if prayer in QAZO_PRAYER_NAMES:
+                    try:
+                        prayer_date = date.fromisoformat(raw_date)
+                    except ValueError:
+                        prayer_date = tashkent_today()
+                    if prayer_date > tashkent_today():
+                        return web.json_response({"error": "future date"}, status=400)
+                    _, created = await create_missed_prayer_if_absent(
+                        session,
+                        user_id=user.id,
+                        prayer_name=prayer,
+                        prayer_date=prayer_date,
+                        source="manual",
                     )
-                )
+                    if prayer_date == tashkent_today() and prayer in DAILY_PRAYER_NAMES:
+                        daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
+                        await DailyPrayersRepository(session).set_status(daily.id, "missed")
+                    await session.commit()
+                    return web.json_response({"ok": True, "created": created})
 
-            await session.commit()
-            return web.json_response({"ok": True})
+            # ── COMPLETE QAZO (mark 1 as done) ──
+            elif action == "complete_qazo":
+                prayer = body.get("prayer", "")
+                try:
+                    count = max(1, min(int(body.get("count", 1) or 1), 99))
+                except Exception:
+                    count = 1
+                if prayer in QAZO_PRAYER_NAMES:
+                    repo = MissedPrayersRepository(session)
+                    try:
+                        available = await repo.count_by_prayer(user.id, prayer)
+                        if available <= 0:
+                            return web.json_response({"ok": False, "message": "Ado qilinmagan qazo qolmagan"}, status=400)
+                        actual_count = min(count, available)
+                        completion_action = await repo.complete_oldest(user_id=user.id, prayer_name=prayer, count=actual_count)
+                        remaining = await repo.count_by_prayer(user.id, prayer)
+                        await session.commit()
+                        return web.json_response({"ok": True, "completed": actual_count, "prayer": prayer, "action_id": int(completion_action.id), "active_remaining": remaining})
+                    except ValueError as e:
+                        await session.rollback()
+                        return web.json_response({"ok": False, "message": str(e)}, status=400)
+                    except Exception as exc:
+                        logger.exception("complete_qazo failed for user %s prayer %s: %s", user.id, prayer, exc)
+                        await session.rollback()
+                        return web.json_response({"ok": False, "message": "Qazo ado qilishda xato yuz berdi. Iltimos, qayta urinib ko'ring."}, status=200)
 
-    return web.json_response({"ok": True})
+            # ── UPDATE TODAY'S PRAYER STATUS ──
+            elif action == "set_prayer_status":
+                prayer = body.get("prayer", "")
+                status = body.get("status", "")
+                if prayer not in DAILY_PRAYER_NAMES or status not in ("prayed", "missed", "pending"):
+                    return web.json_response({"error": "invalid params"}, status=400)
+
+                today = tashkent_today()
+                raw_date = body.get("date", today.isoformat())
+                try:
+                    prayer_date = date.fromisoformat(str(raw_date))
+                except ValueError:
+                    prayer_date = today
+                if prayer_date > today:
+                    return web.json_response({"error": "future_date", "message": "Kelajakdagi kunni belgilab bo‘lmaydi"}, status=400)
+                daily = await ensure_daily_prayer_row(session, user, prayer, prayer_date)
+                if prayer_date == today and status in ("prayed", "missed") and not _is_prayer_due(daily.prayer_time, tashkent_now()):
+                    return web.json_response({"error": "future_prayer", "message": "Bu namoz vaqti hali kirmagan"}, status=400)
+
+                repo = DailyPrayersRepository(session)
+                await repo.set_status(daily.id, status)
+
+                if status == "missed":
+                    await create_missed_prayer_if_absent(
+                        session,
+                        user_id=user.id,
+                        prayer_name=prayer,
+                        prayer_date=prayer_date,
+                        source="daily_confirmation",
+                        daily_prayer_id=daily.id,
+                    )
+                elif status in ("prayed", "pending"):
+                    # If the user changes an earlier "missed" status to "prayed"
+                    # or clears it back to pending, remove the qazo row created by
+                    # daily confirmation. Manually-added/calculated qazo rows stay.
+                    await session.execute(
+                        delete(MissedPrayer).where(
+                            MissedPrayer.user_id == user.id,
+                            MissedPrayer.prayer_name == prayer,
+                            MissedPrayer.prayer_date == prayer_date,
+                            MissedPrayer.status == "active",
+                            MissedPrayer.source == "daily_confirmation",
+                        )
+                    )
+
+                await session.commit()
+                return web.json_response({"ok": True})
+
+        return web.json_response({"ok": False, "message": "unknown action"}, status=400)
+    except Exception as exc:
+        logger.exception("miniapp_action_failed action=%s: %s", action, exc)
+        return web.json_response({"ok": False, "message": "Amalni bajarishda xato bo'ldi. Iltimos, qayta urinib ko'ring."}, status=200)
 
 
 def create_webapp() -> web.Application:
