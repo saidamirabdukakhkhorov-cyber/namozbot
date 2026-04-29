@@ -610,15 +610,20 @@ async def api_action(request: web.Request) -> web.Response:
 
         # ── SAVE QAZO PLAN ──
         elif action == "save_qazo_plan":
-            plan = await get_or_create_qazo_plan(session, user.id)
-            targets = _normalize_qazo_targets(body.get("daily_targets") or {})
-            mode = str(body.get("mode") or "custom")[:30]
-            enabled = bool(body.get("enabled", True))
-            plan.mode = mode if mode in ("balanced", "focus", "custom", "flexible") else "custom"
-            plan.enabled = enabled
-            plan.daily_targets = targets
-            await session.commit()
-            return web.json_response({"ok": True, "plan": {"enabled": plan.enabled, "mode": plan.mode, "daily_targets": targets}})
+            try:
+                plan = await get_or_create_qazo_plan(session, user.id)
+                targets = _normalize_qazo_targets(body.get("daily_targets") or {})
+                mode = str(body.get("mode") or "custom")[:30]
+                enabled = bool(body.get("enabled", True))
+                plan.mode = mode if mode in ("balanced", "focus", "custom", "flexible") else "custom"
+                plan.enabled = enabled
+                plan.daily_targets = targets
+                await session.commit()
+                return web.json_response({"ok": True, "plan": {"enabled": plan.enabled, "mode": plan.mode, "daily_targets": targets}})
+            except Exception as exc:
+                logger.exception("save_qazo_plan failed for user %s: %s", user.id, exc)
+                await session.rollback()
+                return web.json_response({"ok": False, "message": str(exc)}, status=500)
 
         # ── UNDO QAZO COMPLETION ──
         elif action == "undo_qazo_completion":
