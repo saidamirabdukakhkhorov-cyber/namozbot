@@ -145,6 +145,41 @@ async def ensure_daily_prayer_row(session, user: User, prayer: str, prayer_date:
     )
 
 
+async def create_missed_prayer_if_absent(
+    session,
+    *,
+    user_id: int,
+    prayer_name: str,
+    prayer_date: date,
+    source: str = "manual",
+    daily_prayer_id: int | None = None,
+    qazo_calculation_id: int | None = None,
+) -> tuple[MissedPrayer, bool]:
+    """DB-agnostic active-qazo upsert used by Mini App."""
+    existing = await session.scalar(
+        select(MissedPrayer).where(
+            MissedPrayer.user_id == user_id,
+            MissedPrayer.prayer_name == prayer_name,
+            MissedPrayer.prayer_date == prayer_date,
+            MissedPrayer.status == "active",
+        )
+    )
+    if existing:
+        return existing, False
+    row = MissedPrayer(
+        user_id=user_id,
+        prayer_name=prayer_name,
+        prayer_date=prayer_date,
+        status="active",
+        source=source,
+        daily_prayer_id=daily_prayer_id,
+        qazo_calculation_id=qazo_calculation_id,
+    )
+    session.add(row)
+    await session.flush()
+    return row, True
+
+
 # ─── AUTH ───
 
 def verify_init_data(init_data: str) -> dict | None:
@@ -466,13 +501,12 @@ async def api_action(request: web.Request) -> web.Response:
             breakdown = _calculate_qazo_breakdown(start_date, end_date, selected)
             calc_repo = QazoCalculationsRepository(session)
             calc = await calc_repo.create_calculated(user_id=user.id, start_date=start_date, end_date=end_date, selected_prayers=selected, days_count=days_count, breakdown=breakdown)
-            missed_repo = MissedPrayersRepository(session)
             created_breakdown = {prayer: 0 for prayer in selected}
             skipped_breakdown = {prayer: 0 for prayer in selected}
             current_day = start_date
             while current_day <= end_date:
                 for prayer in selected:
-                    _, created = await missed_repo.create(user_id=user.id, prayer_name=prayer, prayer_date=current_day, source="calculator", qazo_calculation_id=calc.id)
+                    _, created = await create_missed_prayer_if_absent(session, user_id=user.id, prayer_name=prayer, prayer_date=current_day, source="calculator", qazo_calculation_id=calc.id)
                     if created:
                         created_breakdown[prayer] += 1
                     else:
@@ -493,8 +527,8 @@ async def api_action(request: web.Request) -> web.Response:
                     prayer_date = tashkent_today()
                 if prayer_date > tashkent_today():
                     return web.json_response({"error": "future date"}, status=400)
-                repo = MissedPrayersRepository(session)
-                _, created = await repo.create(
+                _, created = await create_missed_prayer_if_absent(
+                    session,
                     user_id=user.id,
                     prayer_name=prayer,
                     prayer_date=prayer_date,
@@ -546,8 +580,8 @@ async def api_action(request: web.Request) -> web.Response:
             await repo.set_status(daily.id, status)
 
             if status == "missed":
-                missed_repo = MissedPrayersRepository(session)
-                await missed_repo.create(
+                await create_missed_prayer_if_absent(
+                    session,
                     user_id=user.id,
                     prayer_name=prayer,
                     prayer_date=prayer_date,
