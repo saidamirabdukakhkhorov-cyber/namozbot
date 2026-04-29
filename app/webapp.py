@@ -120,6 +120,60 @@ async def ensure_qazo_schema(session) -> None:
     # migrations were skipped, so the web app self-heals instead of returning
     # HTTP 500 to users.
     await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGSERIAL PRIMARY KEY,
+        telegram_id BIGINT NOT NULL UNIQUE,
+        username VARCHAR(255) NULL,
+        full_name VARCHAR(255) NULL,
+        language_code VARCHAR(5) NOT NULL DEFAULT 'uz',
+        city VARCHAR(120) NULL,
+        timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        onboarding_completed BOOLEAN NOT NULL DEFAULT false,
+        last_activity_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS username VARCHAR(255) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS language_code VARCHAR(5) NOT NULL DEFAULT 'uz'"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT false"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NULL"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id_unique ON users (telegram_id)"))
+    await session.execute(text("CREATE INDEX IF NOT EXISTS ix_users_city ON users (city)"))
+
+    await session.execute(text("""
+    CREATE TABLE IF NOT EXISTS reminder_settings (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        prayer_reminders_enabled BOOLEAN NOT NULL DEFAULT true,
+        qazo_reminders_enabled BOOLEAN NOT NULL DEFAULT true,
+        qazo_reminder_times JSONB NOT NULL DEFAULT '["08:00", "21:00"]'::jsonb,
+        daily_qazo_limit INTEGER NOT NULL DEFAULT 1,
+        quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true,
+        quiet_hours_start TIME NOT NULL DEFAULT '23:00',
+        quiet_hours_end TIME NOT NULL DEFAULT '06:00',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS prayer_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("""ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminder_times JSONB NOT NULL DEFAULT '["08:00", "21:00"]'::jsonb"""))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS daily_qazo_limit INTEGER NOT NULL DEFAULT 1"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+
+    await session.execute(text("""
     CREATE TABLE IF NOT EXISTS prayer_times (
         id BIGSERIAL PRIMARY KEY,
         city VARCHAR(120) NOT NULL,
@@ -510,6 +564,11 @@ async def api_get_data(request: web.Request) -> web.Response:
 
     try:
         async with AsyncSessionLocal() as session:
+            # Run schema self-heal BEFORE selecting ORM models. Older Railway DBs
+            # can miss newly added mapped columns; selecting User first would fail
+            # with UndefinedColumn and the Mini App would render an empty fallback.
+            await ensure_qazo_schema(session)
+
             user: User | None = await session.scalar(
                 select(User).where(User.telegram_id == telegram_id)
             )
@@ -518,8 +577,6 @@ async def api_get_data(request: web.Request) -> web.Response:
                     "error": "registration_required",
                     "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
                 }, status=403)
-
-            await ensure_qazo_schema(session)
 
             today = tashkent_today()
             now_tz = tashkent_now()
@@ -686,9 +743,16 @@ async def api_get_data(request: web.Request) -> web.Response:
             ) or 0)
 
             # ── Reminder settings ──
-            reminder: ReminderSetting | None = await session.scalar(
-                select(ReminderSetting).where(ReminderSetting.user_id == user.id)
-            )
+            # If an older DB is still missing this table/columns for any reason,
+            # do not fail the whole Mini App data response; use safe defaults.
+            reminder: ReminderSetting | None = None
+            try:
+                reminder = await session.scalar(
+                    select(ReminderSetting).where(ReminderSetting.user_id == user.id)
+                )
+            except Exception as exc:
+                logger.warning("Could not load reminder settings for mini app: %s", exc)
+                await session.rollback()
 
             return web.json_response({
                 "ok": True,
@@ -746,6 +810,10 @@ async def api_action(request: web.Request) -> web.Response:
 
     try:
         async with AsyncSessionLocal() as session:
+            # Same preflight as /api/data: do not read ORM models before the
+            # production database has been self-healed.
+            await ensure_qazo_schema(session)
+
             user: User | None = await session.scalar(
                 select(User).where(User.telegram_id == telegram_id)
             )
@@ -755,8 +823,6 @@ async def api_action(request: web.Request) -> web.Response:
                     "error": "registration_required",
                     "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
                 }, status=403)
-
-            await ensure_qazo_schema(session)
 
             # ── SET LANGUAGE ──
             if action == "set_lang":
