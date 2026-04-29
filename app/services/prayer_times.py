@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 
+_HTTP_TIMEOUT = aiohttp.ClientTimeout(total=4, connect=2, sock_read=3)
+
 from app.core.config import settings
 from app.core.constants import PRAYER_NAMES
 from app.db.repositories.prayer_times import PrayerTimesRepository
@@ -313,8 +315,8 @@ class ExternalPrayerTimesProvider:
         raise daily_exc or RuntimeError("Prayer times provider failed")
 
     async def _get_json(self, url: str, params: dict[str, str]) -> Any:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=15) as resp:
+        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
+            async with session.get(url, params=params) as resp:
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
 
