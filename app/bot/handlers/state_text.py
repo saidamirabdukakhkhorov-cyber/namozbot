@@ -9,13 +9,12 @@ from aiogram.types import Message
 from app.bot.filters.text import detect_global_menu_action
 from app.bot.handlers.global_navigation import send_global_menu_screen
 from app.bot.handlers.qazo import render_qazo_overview, source_label, source_values
-from app.bot.handlers.qazo_calculator import calc_input_text, calc_prayers_text, handle_calc2_year_input
+from app.bot.handlers.qazo_calculator import handle_calc2_year_input
 from app.bot.handlers.settings import get_or_create_reminder_setting, render_settings
 from app.bot.keyboards.language import onboarding_reminder_keyboard
 from app.bot.keyboards.main import main_menu_keyboard
 from app.bot.keyboards.prayer import prayer_select_keyboard
 from app.bot.keyboards.qazo import qazo_complete_success_keyboard, qazo_overview_keyboard
-from app.bot.keyboards.qazo_calculator import calculator_input_keyboard, calculator_prayers_keyboard
 from app.bot.keyboards.settings import settings_keyboard
 from app.db.repositories.missed_prayers import MissedPrayersRepository
 from app.db.repositories.states import StatesRepository
@@ -221,83 +220,3 @@ async def state_text_handler(message: Message, current_user, session, is_admin: 
         if handled:
             return
 
-    if state.state.startswith("calc_waiting"):
-        payload = state.payload or {}
-        today = tashkent_today()
-        try:
-            if state.state == "calc_waiting_start_date":
-                start = date.fromisoformat(text)
-                if start > today:
-                    await message.answer(t(lang, "error.future_date"))
-                    return
-                payload["start_date"] = start.isoformat()
-                await StatesRepository(session).set(current_user.id, "calc_waiting_end_date", payload)
-                await message.answer(calc_input_text(lang, "qazo.calculator.step.end_date", "2023-03-31"), reply_markup=calculator_input_keyboard(lang, back_callback="calc:start"))
-                return
-
-            if state.state == "calc_waiting_end_date":
-                end = date.fromisoformat(text)
-                if end > today:
-                    await message.answer(t(lang, "error.future_date"))
-                    return
-                payload["end_date"] = end.isoformat()
-
-            elif state.state == "calc_waiting_start_year":
-                year = parse_year(text)
-                start = date(year, 1, 1)
-                if start > today:
-                    await message.answer(t(lang, "error.future_date"))
-                    return
-                payload["start_date"] = start.isoformat()
-                await StatesRepository(session).set(current_user.id, "calc_waiting_end_year", payload)
-                await message.answer(calc_input_text(lang, "qazo.calculator.step.end_year", "2023"), reply_markup=calculator_input_keyboard(lang, back_callback="calc:start"))
-                return
-
-            elif state.state == "calc_waiting_end_year":
-                year = parse_year(text)
-                end = date(year, 12, 31)
-                if end > today:
-                    end = today
-                payload["end_date"] = end.isoformat()
-
-            elif state.state == "calc_waiting_start_month":
-                year, month = parse_yyyy_mm(text)
-                start = date(year, month, 1)
-                if start > today:
-                    await message.answer(t(lang, "error.future_date"))
-                    return
-                payload["start_date"] = start.isoformat()
-                await StatesRepository(session).set(current_user.id, "calc_waiting_end_month", payload)
-                await message.answer(calc_input_text(lang, "qazo.calculator.step.end_month", "2023-03"), reply_markup=calculator_input_keyboard(lang, back_callback="calc:start"))
-                return
-
-            elif state.state == "calc_waiting_end_month":
-                year, month = parse_yyyy_mm(text)
-                last_day = calendar.monthrange(year, month)[1]
-                end = date(year, month, last_day)
-                if end > today:
-                    end = today
-                payload["end_date"] = end.isoformat()
-
-        except ValueError:
-            if "month" in state.state:
-                await message.answer(t(lang, "error.wrong_month"))
-            elif "year" in state.state:
-                await message.answer(t(lang, "error.wrong_year"))
-            else:
-                await message.answer(t(lang, "error.wrong_date"))
-            return
-
-        start = date.fromisoformat(payload["start_date"])
-        end = date.fromisoformat(payload["end_date"])
-        if end < start:
-            await message.answer(t(lang, "error.end_before_start"))
-            return
-
-        payload["selected_prayers"] = []
-        await StatesRepository(session).set(current_user.id, "calc_select_prayers", payload)
-        await message.answer(
-            calc_prayers_text(lang, payload),
-            reply_markup=calculator_prayers_keyboard(lang, []),
-        )
-        return
