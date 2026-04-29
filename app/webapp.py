@@ -106,6 +106,48 @@ def _qazo_plan_payload(plan: QazoPlan, active_qazo: dict[str, int], completed_to
         "today_left": max(0, total_target - total_done),
     }
 
+async def _execute_schema_statement(session, stmt) -> None:
+    """Run one schema self-heal statement without poisoning the request transaction."""
+    try:
+        await session.execute(stmt)
+        await session.commit()
+    except Exception as exc:
+        logger.warning("schema self-heal statement skipped: %s", exc)
+        await session.rollback()
+
+
+async def _get_user_snapshot(session, telegram_id: int) -> dict | None:
+    """Read only primitive user fields the Mini App needs."""
+    row = (await session.execute(text("""
+        SELECT id, telegram_id, username, full_name, language_code, city, timezone, onboarding_completed
+        FROM users
+        WHERE telegram_id = :telegram_id
+        LIMIT 1
+    """), {"telegram_id": telegram_id})).mappings().first()
+    return dict(row) if row else None
+
+
+def _zero_qazo() -> dict[str, int]:
+    return {p: 0 for p in QAZO_PRAYER_NAMES}
+
+
+def _safe_iso_date(value) -> str | None:
+    try:
+        return value.isoformat() if value else None
+    except Exception:
+        return None
+
+
+def _safe_json_value(value, fallback):
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return fallback
+    return value
+
 
 async def ensure_qazo_schema(session) -> None:
     """Ensure Mini App qazo tables exist even if Alembic was not run yet."""
@@ -119,7 +161,7 @@ async def ensure_qazo_schema(session) -> None:
     # Core Mini App tables/columns. Production can be on an older DB if
     # migrations were skipped, so the web app self-heals instead of returning
     # HTTP 500 to users.
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS users (
         id BIGSERIAL PRIMARY KEY,
         telegram_id BIGINT NOT NULL UNIQUE,
@@ -135,20 +177,20 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS username VARCHAR(255) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS language_code VARCHAR(5) NOT NULL DEFAULT 'uz'"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT false"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id_unique ON users (telegram_id)"))
-    await session.execute(text("CREATE INDEX IF NOT EXISTS ix_users_city ON users (city)"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS username VARCHAR(255) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS language_code VARCHAR(5) NOT NULL DEFAULT 'uz'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT false"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id_unique ON users (telegram_id)"))
+    await _execute_schema_statement(session, text("CREATE INDEX IF NOT EXISTS ix_users_city ON users (city)"))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS user_preferences (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -164,20 +206,20 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'uz'"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS date_format VARCHAR(20) NOT NULL DEFAULT 'YYYY-MM-DD'"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS main_menu_style VARCHAR(30) NOT NULL DEFAULT 'reply_keyboard'"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_daily_summary BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_weekly_summary BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_user_preferences_user_id_unique ON user_preferences (user_id) WHERE user_id IS NOT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS language VARCHAR(5) NOT NULL DEFAULT 'uz'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS date_format VARCHAR(20) NOT NULL DEFAULT 'YYYY-MM-DD'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS main_menu_style VARCHAR(30) NOT NULL DEFAULT 'reply_keyboard'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_daily_summary BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS show_weekly_summary BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("CREATE UNIQUE INDEX IF NOT EXISTS ix_user_preferences_user_id_unique ON user_preferences (user_id) WHERE user_id IS NOT NULL"))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS reminder_settings (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -192,18 +234,18 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS prayer_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("""ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminder_times JSONB NOT NULL DEFAULT '["08:00", "21:00"]'::jsonb"""))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS daily_qazo_limit INTEGER NOT NULL DEFAULT 1"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS prayer_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminders_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("""ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS qazo_reminder_times JSONB NOT NULL DEFAULT '["08:00", "21:00"]'::jsonb"""))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS daily_qazo_limit INTEGER NOT NULL DEFAULT 1"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_start TIME NOT NULL DEFAULT '23:00'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS quiet_hours_end TIME NOT NULL DEFAULT '06:00'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS reminder_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS prayer_times (
         id BIGSERIAL PRIMARY KEY,
         city VARCHAR(120) NOT NULL,
@@ -220,21 +262,21 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS fajr_time TIME NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS dhuhr_time TIME NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS asr_time TIME NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS maghrib_time TIME NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS isha_time TIME NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'external'"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_prayer_times_city_date ON prayer_times (city, prayer_date)'))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS city VARCHAR(120) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS fajr_time TIME NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS dhuhr_time TIME NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS asr_time TIME NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS maghrib_time TIME NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS isha_time TIME NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Tashkent'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'external'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS prayer_times ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_prayer_times_city_date ON prayer_times (city, prayer_date)'))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS daily_prayers (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -248,19 +290,19 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_time TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS snooze_until TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_date ON daily_prayers (user_id, prayer_date)'))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_status ON daily_prayers (user_id, status)'))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS prayer_time TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS snooze_until TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS daily_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_date ON daily_prayers (user_id, prayer_date)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_daily_prayers_user_status ON daily_prayers (user_id, status)'))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS qazo_calculations (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -280,24 +322,24 @@ async def ensure_qazo_schema(session) -> None:
         applied_at TIMESTAMPTZ NULL
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS selected_prayers JSONB NOT NULL DEFAULT '[]'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS days_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS prayers_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS total_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'calculated'"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_missed_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_existing_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NULL"))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_calc_user_created ON qazo_calculations (user_id, created_at)'))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS selected_prayers JSONB NOT NULL DEFAULT '[]'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS days_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS prayers_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS total_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'calculated'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_missed_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS skipped_existing_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_calculations ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_qazo_calc_user_created ON qazo_calculations (user_id, created_at)'))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS qazo_plans (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -310,20 +352,20 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_plans_user_enabled ON qazo_plans (user_id, enabled)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_qazo_plans_user_enabled ON qazo_plans (user_id, enabled)'))
 
     # Self-heal older production DBs. CREATE TABLE IF NOT EXISTS does not add
     # columns to existing tables; missing columns caused HTTP 500 in Qazo.
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS mode VARCHAR(30) NOT NULL DEFAULT 'custom'"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS daily_targets JSONB NOT NULL DEFAULT '{\"fajr\":1,\"dhuhr\":1,\"asr\":1,\"maghrib\":1,\"isha\":1,\"witr\":0}'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS preferred_times JSONB NOT NULL DEFAULT '[]'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS notes TEXT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS mode VARCHAR(30) NOT NULL DEFAULT 'custom'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS daily_targets JSONB NOT NULL DEFAULT '{\"fajr\":1,\"dhuhr\":1,\"asr\":1,\"maghrib\":1,\"isha\":1,\"witr\":0}'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS preferred_times JSONB NOT NULL DEFAULT '[]'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS notes TEXT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_plans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS missed_prayers (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -339,23 +381,23 @@ async def ensure_qazo_schema(session) -> None:
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS source VARCHAR(30) NOT NULL DEFAULT 'manual'"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_status ON missed_prayers (user_id, status)'))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_prayer_status ON missed_prayers (user_id, prayer_name, status)'))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_user_source_status ON missed_prayers (user_id, source, status)'))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_missed_qazo_calculation_id ON missed_prayers (qazo_calculation_id)'))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS prayer_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS source VARCHAR(30) NOT NULL DEFAULT 'manual'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS daily_prayer_id BIGINT NULL REFERENCES daily_prayers(id) ON DELETE SET NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS missed_prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_missed_user_status ON missed_prayers (user_id, status)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_missed_user_prayer_status ON missed_prayers (user_id, prayer_name, status)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_missed_user_source_status ON missed_prayers (user_id, source, status)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_missed_qazo_calculation_id ON missed_prayers (qazo_calculation_id)'))
 
-    await session.execute(text("""
+    await _execute_schema_statement(session, text("""
     CREATE TABLE IF NOT EXISTS qazo_completion_actions (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -371,19 +413,19 @@ async def ensure_qazo_schema(session) -> None:
         undone_at TIMESTAMPTZ NULL
     )
     """))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS completed_count INTEGER NOT NULL DEFAULT 0"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS missed_prayer_ids JSONB NOT NULL DEFAULT '[]'::jsonb"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS source_filter JSONB NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed'"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
-    await session.execute(text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS undone_at TIMESTAMPTZ NULL"))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_created ON qazo_completion_actions (user_id, created_at DESC)'))
-    await session.execute(text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_status ON qazo_completion_actions (user_id, status)'))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS user_id BIGINT NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS prayer_name VARCHAR(20) NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS completed_count INTEGER NOT NULL DEFAULT 0"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS missed_prayer_ids JSONB NOT NULL DEFAULT '[]'::jsonb"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS source_filter JSONB NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS start_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS end_date DATE NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS qazo_calculation_id BIGINT NULL REFERENCES qazo_calculations(id) ON DELETE SET NULL"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed'"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()"))
+    await _execute_schema_statement(session, text("ALTER TABLE IF EXISTS qazo_completion_actions ADD COLUMN IF NOT EXISTS undone_at TIMESTAMPTZ NULL"))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_created ON qazo_completion_actions (user_id, created_at DESC)'))
+    await _execute_schema_statement(session, text('CREATE INDEX IF NOT EXISTS ix_qazo_completion_user_status ON qazo_completion_actions (user_id, status)'))
     await session.commit()
 
 
@@ -627,23 +669,21 @@ async def api_get_data(request: web.Request) -> web.Response:
             # with UndefinedColumn and the Mini App would render an empty fallback.
             await ensure_qazo_schema(session)
 
-            user: User | None = await session.scalar(
-                select(User).where(User.telegram_id == telegram_id)
-            )
-            if not user or not user.onboarding_completed:
+            user_data = await _get_user_snapshot(session, int(telegram_id))
+            if not user_data or not bool(user_data.get("onboarding_completed")):
                 return web.json_response({
                     "error": "registration_required",
                     "message": "Mini Appdan foydalanish uchun avval botda /start bosib, tilni tanlang va rozilik bering.",
                 }, status=403)
 
-            # Snapshot ORM values before any rollback. SQLAlchemy expires ORM
+            # Snapshot primitive values before any rollback. SQLAlchemy expires ORM
             # objects on rollback; keeping primitive values prevents the Mini App
             # from losing the bot user data after a prayer/API/DB fallback.
-            user_id = int(user.id)
-            user_name = user.full_name or user.username or "Foydalanuvchi"
-            user_lang = user.language_code or "uz"
-            city = _region_for_islomapi(user.city or "Toshkent")
-            tz = user.timezone or TASHKENT_TZ_NAME
+            user_id = int(user_data["id"])
+            user_name = user_data.get("full_name") or user_data.get("username") or "Foydalanuvchi"
+            user_lang = user_data.get("language_code") or "uz"
+            city = _region_for_islomapi(user_data.get("city") or "Toshkent")
+            tz = user_data.get("timezone") or TASHKENT_TZ_NAME
 
             today = tashkent_today()
             now_tz = tashkent_now()
