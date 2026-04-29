@@ -107,9 +107,17 @@ def _qazo_plan_payload(plan: QazoPlan, active_qazo: dict[str, int], completed_to
     }
 
 async def _execute_schema_statement(session, stmt) -> None:
-    """Run one schema self-heal statement without poisoning the request transaction."""
+    """Run one schema self-heal DDL statement without poisoning the request transaction.
+
+    SQLAlchemy ``text()`` treats JSON colons like ``{"fajr":1}`` as bind
+    parameters (``:1``), which broke the production qazo_plans self-heal and
+    left the table uncreated. DDL here is static app-owned SQL, so execute the
+    raw driver SQL directly to avoid bind parsing.
+    """
     try:
-        await session.execute(stmt)
+        raw_sql = getattr(stmt, "text", None) or str(stmt)
+        conn = await session.connection()
+        await conn.exec_driver_sql(raw_sql)
         await session.commit()
     except Exception as exc:
         logger.warning("schema self-heal statement skipped: %s", exc)
