@@ -2,918 +2,634 @@
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Namozlarim — qayta tuzilgan</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Namozlarim</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root {
-      --bg: #f7f5ef;
-      --surface: #ffffff;
-      --surface-soft: #fbfaf6;
-      --surface-tint: #edf6f1;
-      --text: #17263a;
-      --text-soft: #4f6072;
-      --muted: #7a8794;
-      --line: #e7ece5;
-      --line-strong: #d6dfd3;
-      --primary: #2f7d5b;
-      --primary-dark: #246146;
-      --primary-soft: #eaf5ef;
-      --blue: #3a73d9;
-      --blue-soft: #eef4ff;
-      --warning: #c98724;
-      --warning-soft: #fff5e5;
-      --danger: #c94d4d;
-      --danger-soft: #fdeeee;
-      --radius-xl: 26px;
-      --radius-lg: 20px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
-      --shadow-card: 0 12px 28px rgba(23, 38, 58, .06);
-      --nav-h: 92px;
-      --tap: 48px;
+    :root{
+      --bg:#f5f7fb;
+      --bg-soft:#eef7f2;
+      --surface:#ffffff;
+      --surface-soft:#f8fafc;
+      --surface-tint:#f1f6fb;
+      --text:#17263a;
+      --text-soft:#4b627b;
+      --muted:#8796a8;
+      --line:#e5ebf2;
+      --line-strong:#d8e1ea;
+      --primary:#2f865f;
+      --primary-soft:#e8f6ef;
+      --blue:#3478f6;
+      --blue-soft:#eaf2ff;
+      --orange:#d98816;
+      --orange-soft:#fff3df;
+      --danger:#d94f4f;
+      --danger-soft:#fdecec;
+      --shadow-xs:0 2px 8px rgba(23,38,58,.04);
+      --shadow-sm:0 8px 24px rgba(23,38,58,.07);
+      --shadow-md:0 18px 44px rgba(23,38,58,.10);
+      --radius-xl:28px;
+      --radius-lg:22px;
+      --radius-md:17px;
+      --radius-sm:13px;
+      --nav-h:86px;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    html, body { min-height: 100%; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, Arial, sans-serif;
-      color: var(--text);
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{min-height:100%}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Inter",Arial,sans-serif;
       background:
-        radial-gradient(circle at 18% -8%, rgba(47, 125, 91, .11), transparent 28%),
-        radial-gradient(circle at 96% 0%, rgba(58, 115, 217, .08), transparent 26%),
-        linear-gradient(180deg, #fbfaf6 0%, var(--bg) 100%);
-      line-height: 1.42;
-      letter-spacing: -.012em;
-      max-width: 840px;
-      margin: 0 auto;
-      padding: 12px 12px calc(var(--nav-h) + 20px);
+        radial-gradient(circle at 18% -8%, rgba(52,120,246,.14), transparent 30%),
+        radial-gradient(circle at 100% 2%, rgba(47,134,95,.12), transparent 28%),
+        linear-gradient(180deg,#fbfdff 0%,var(--bg) 58%,#f7f5ef 100%);
+      color:var(--text);
+      font-size:15px;
+      line-height:1.42;
+      letter-spacing:-.012em;
+      max-width:860px;
+      margin:0 auto;
+      padding:14px 12px calc(var(--nav-h) + 28px);
+    }
+    button,input{font:inherit}
+    button{border:0;cursor:pointer;color:inherit;background:none}
+    button:disabled{cursor:not-allowed;opacity:.62}
+
+    .app-shell{display:block}
+    .app-header{
+      display:grid;
+      grid-template-columns:48px 1fr 48px;
+      gap:10px;
+      align-items:center;
+      min-height:58px;
+      margin-bottom:12px;
+      position:sticky;
+      top:0;
+      z-index:15;
+      padding-top:2px;
+      background:linear-gradient(180deg,rgba(251,253,255,.94),rgba(251,253,255,.74) 74%,rgba(251,253,255,0));
+      backdrop-filter:blur(16px);
+      -webkit-backdrop-filter:blur(16px);
+    }
+    .app-title{text-align:center;min-width:0}
+    .app-title h1{font-size:23px;font-weight:800;letter-spacing:-.055em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .app-title p{font-size:12px;color:var(--muted);font-weight:680;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .icon-button{
+      width:48px;height:48px;border-radius:18px;
+      background:rgba(255,255,255,.88);
+      border:1px solid var(--line);
+      box-shadow:var(--shadow-xs);
+      display:flex;align-items:center;justify-content:center;
+      font-size:19px;color:var(--text-soft);
     }
 
-    button, input { font: inherit; }
-    button { border: 0; background: none; color: inherit; cursor: pointer; }
-    button:disabled { opacity: .52; cursor: not-allowed; }
+    .screen{display:none;animation:fade .18s ease}
+    .screen.active{display:block}
+    @keyframes fade{from{opacity:.72;transform:translateY(5px)}to{opacity:1;transform:none}}
 
-    .app-header {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      display: grid;
-      grid-template-columns: var(--tap) minmax(0, 1fr) var(--tap);
-      gap: 10px;
-      align-items: center;
-      min-height: 64px;
-      padding: 4px 0 10px;
-      background: linear-gradient(180deg, rgba(251, 250, 246, .96), rgba(251, 250, 246, .82) 72%, rgba(251, 250, 246, 0));
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+    .section{margin-bottom:14px}
+    .section-header{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin:20px 6px 10px}
+    .section-header h2{font-size:18px;font-weight:800;letter-spacing:-.035em}
+    .section-header span{font-size:12px;color:var(--muted);font-weight:720}
+
+    .card{
+      background:var(--surface);
+      border:1px solid var(--line);
+      border-radius:var(--radius-xl);
+      box-shadow:var(--shadow-xs);
+      overflow:hidden;
     }
-
-    .icon-button {
-      width: var(--tap);
-      height: var(--tap);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, .9);
-      border: 1px solid var(--line);
-      display: grid;
-      place-items: center;
-      font-size: 20px;
-    }
-
-    .app-title { text-align: center; min-width: 0; }
-    .app-title h1 { font-size: 23px; line-height: 1; font-weight: 900; letter-spacing: -.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .app-title p { color: var(--muted); font-size: 12px; font-weight: 740; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    .screen { display: none; animation: fade .16s ease; }
-    .screen.active { display: block; }
-    @keyframes fade { from { opacity: .72; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-
-    .section { margin-bottom: 14px; }
-    .section-title { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin: 20px 6px 10px; }
-    .section-title h2 { font-size: 18px; font-weight: 900; letter-spacing: -.04em; }
-    .section-title span { color: var(--muted); font-size: 12px; font-weight: 760; }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-card);
-      overflow: hidden;
-    }
-    .card-pad { padding: 16px; }
-
-    .hero {
-      padding: 18px;
-      border-color: #d7e7dc;
+    .card-body{padding:16px}
+    .hero-card{
+      position:relative;
+      padding:20px;
       background:
-        linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.84)),
-        radial-gradient(circle at 10% 0%, rgba(47, 125, 91, .14), transparent 35%);
+        linear-gradient(160deg,rgba(255,255,255,.88),rgba(255,255,255,.72)),
+        radial-gradient(circle at 12% 0%,rgba(52,120,246,.18),transparent 34%),
+        radial-gradient(circle at 88% 6%,rgba(47,134,95,.15),transparent 30%);
+      backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px);
+      box-shadow:var(--shadow-sm);
     }
-    .hero-kicker {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      color: var(--primary);
-      background: var(--primary-soft);
-      border: 1px solid #d4eadf;
-      border-radius: 999px;
-      padding: 7px 10px;
-      font-size: 12px;
-      font-weight: 900;
-      margin-bottom: 12px;
-    }
-    .hero h2 { font-size: 28px; line-height: 1.04; letter-spacing: -.065em; font-weight: 940; }
-    .hero p { color: var(--text-soft); font-size: 14px; font-weight: 680; margin-top: 6px; }
+    .hero-title{font-size:34px;font-weight:860;letter-spacing:-.075em;line-height:1.04;margin-top:4px}
+    .hero-meta{font-size:15px;color:var(--text-soft);font-weight:690;margin-top:7px}
+    .eyebrow{font-size:12px;font-weight:820;color:var(--blue);text-transform:none}
 
-    .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-    .overview-card {
-      min-height: 72px;
-      padding: 12px;
-      border-radius: var(--radius-lg);
-      background: var(--surface);
-      border: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .overview-card.primary { color: var(--primary); background: var(--primary-soft); border-color: #d4eadf; }
-    .overview-card span { color: var(--muted); font-size: 11px; font-weight: 860; text-transform: uppercase; letter-spacing: .02em; }
-    .overview-card strong { font-size: 17px; font-weight: 930; letter-spacing: -.04em; margin-top: 4px; }
-    .overview-card.primary span { color: var(--primary); opacity: .8; }
+    .focus-card{padding:16px;background:linear-gradient(180deg,#fff,#fbfcff)}
+    .focus-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .focus-label{font-size:12px;font-weight:820;color:var(--muted);margin-bottom:3px}
+    .focus-title{font-size:23px;font-weight:850;letter-spacing:-.055em;line-height:1.05}
+    .focus-meta{font-size:13px;color:var(--text-soft);font-weight:680;margin-top:5px}
+    .focus-badge{flex:none;padding:8px 10px;border-radius:999px;background:var(--blue-soft);color:var(--blue);font-size:12px;font-weight:820}
 
-    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
-    .btn {
-      min-height: 50px;
-      border-radius: 17px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 0 14px;
-      font-size: 15px;
-      font-weight: 900;
-      border: 1px solid transparent;
-    }
-    .btn.full { width: 100%; margin-top: 10px; }
-    .btn.primary { background: var(--primary); color: #fff; box-shadow: 0 12px 22px rgba(47, 125, 91, .18); }
-    .btn.dark { background: #17263a; color: #fff; }
-    .btn.green { color: var(--primary); background: var(--primary-soft); border-color: #cfe7da; }
-    .btn.blue { color: var(--blue); background: var(--blue-soft); border-color: #dbe8ff; }
-    .btn.red { color: var(--danger); background: var(--danger-soft); border-color: #f4d0d0; }
-    .btn.gray { color: var(--text-soft); background: var(--surface-soft); border-color: var(--line); }
-    .btn.link { min-height: 38px; padding: 0; border: 0; background: transparent; color: var(--blue); }
+    .chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border-radius:999px;font-size:13px;font-weight:760;background:var(--surface-soft);border:1px solid var(--line);color:var(--text-soft)}
+    .chip.primary{background:var(--primary-soft);border-color:#d2eadf;color:var(--primary)}
+    .chip.blue{background:var(--blue-soft);border-color:#d9e8ff;color:var(--blue)}
+    .chip.orange{background:var(--orange-soft);border-color:#f7dfb6;color:var(--orange)}
+    .chip.danger{background:var(--danger-soft);border-color:#f7cfcf;color:var(--danger)}
+    .chip.on{background:var(--primary-soft);border-color:#cae8d9;color:var(--primary)}
 
-    .list-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 58px 112px;
-      gap: 10px;
-      align-items: center;
-      min-height: 76px;
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      width: 100%;
-    }
-    .list-row:last-child { border-bottom: 0; }
-    .row-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .row-icon { width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center; background: var(--surface-soft); border: 1px solid var(--line); font-size: 20px; flex: none; }
-    .row-text { min-width: 0; }
-    .row-text strong { display: block; font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row-text small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row-time { color: var(--text-soft); font-size: 15px; font-weight: 870; text-align: center; }
-    .status-pill { justify-self: end; min-width: 104px; padding: 9px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; text-align: center; border: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); }
-    .status-pill.success { background: var(--primary-soft); border-color: #cfe7da; color: var(--primary); }
-    .status-pill.warning { background: var(--warning-soft); border-color: #f0dcb4; color: var(--warning); }
-    .status-pill.danger { background: var(--danger-soft); border-color: #f4d0d0; color: var(--danger); }
-    .status-pill.info { background: var(--blue-soft); border-color: #dbe8ff; color: var(--blue); }
+    .button-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .btn{min-height:50px;border-radius:17px;font-weight:820;font-size:15px;padding:0 14px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent}
+    .btn.primary{background:linear-gradient(180deg,#203248,#17263a);color:#fff;box-shadow:0 12px 22px rgba(23,38,58,.12)}
+    .btn.green{background:var(--primary-soft);color:var(--primary);border-color:#cfeada}
+    .btn.blue{background:var(--blue-soft);color:var(--blue);border-color:#d8e8ff}
+    .btn.red{background:var(--danger-soft);color:var(--danger);border-color:#f7d2d2}
+    .btn.gray{background:var(--surface-soft);color:var(--text-soft);border-color:var(--line)}
+    .btn.ghost{background:transparent;color:var(--blue);border-color:transparent;min-height:42px}
+    .btn.full{width:100%;margin-top:10px}
+    .link-button{color:var(--blue);font-weight:820;background:transparent;border:0;padding:6px 0}
 
-    .progress-track { height: 12px; border-radius: 999px; background: #e9eee7; overflow: hidden; margin-top: 14px; }
-    .progress-fill { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--primary), #69c58c); transition: width .18s ease; }
+    .list{padding:2px 0}
+    .list-row{min-height:76px;display:grid;grid-template-columns:minmax(0,1fr) 58px 110px;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+    .list-row:last-child{border-bottom:0}
+    .row-main{display:flex;align-items:center;gap:12px;min-width:0}
+    .row-icon{width:42px;height:42px;border-radius:16px;background:var(--surface-soft);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:var(--shadow-xs);flex:none}
+    .row-label{min-width:0}
+    .row-label strong{display:block;font-size:16px;font-weight:820;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row-label small{display:block;margin-top:1px;font-size:12px;color:var(--muted);font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row-time{text-align:center;font-size:15px;font-weight:800;color:var(--text-soft)}
+    .status-pill{justify-self:end;min-width:104px;padding:9px 10px;border-radius:999px;font-size:12px;font-weight:820;text-align:center;border:1px solid var(--line);background:var(--surface-soft);color:var(--muted)}
+    .status-pill.success{background:var(--primary-soft);border-color:#cfeada;color:var(--primary)}
+    .status-pill.danger{background:var(--danger-soft);border-color:#f7cfcf;color:var(--danger)}
+    .status-pill.warning{background:var(--orange-soft);border-color:#f4ddb5;color:var(--orange)}
+    .status-pill.info{background:var(--blue-soft);border-color:#d8e8ff;color:var(--blue)}
 
-    .qazo-hero { padding: 18px; border-color: #d7e7dc; background: linear-gradient(180deg, #fff, #fbfdfb); }
-    .qazo-top { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
-    .qazo-top h2 { font-size: 27px; line-height: 1.05; font-weight: 940; letter-spacing: -.06em; }
-    .qazo-top p { color: var(--text-soft); font-size: 14px; font-weight: 680; margin-top: 6px; }
-    .qazo-pill { color: var(--blue); background: var(--blue-soft); border: 1px solid #dbe8ff; border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 900; white-space: nowrap; }
+    .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .metric-card{padding:16px;min-height:116px}
+    .metric-label{font-size:12px;color:var(--muted);font-weight:780}
+    .metric-value{font-size:31px;font-weight:870;letter-spacing:-.065em;margin-top:5px;line-height:1.04}
+    .metric-hint{font-size:13px;color:var(--muted);font-weight:650;margin-top:4px}
+    .text-danger{color:var(--danger)}.text-primary{color:var(--primary)}.text-blue{color:var(--blue)}
 
-    .task-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 68px 118px;
-      gap: 10px;
-      align-items: center;
-      min-height: 74px;
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-    }
-    .task-row:last-child { border-bottom: 0; }
-    .task-title { font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .task-meta { color: var(--muted); font-size: 12px; font-weight: 700; margin-top: 2px; }
-    .task-count { text-align: center; font-weight: 940; color: var(--text-soft); }
-    .task-count span { color: var(--primary); }
-    .task-action { min-height: 42px; border-radius: 15px; font-size: 13px; font-weight: 900; background: var(--primary-soft); color: var(--primary); border: 1px solid #cfe7da; }
-    .task-action.done { color: var(--muted); background: var(--surface-soft); border-color: var(--line); }
+    .progress-track{height:12px;border-radius:999px;background:#e9eef5;margin-top:14px;overflow:hidden}
+    .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#2f865f,#65ca91);border-radius:999px;transition:width .22s ease}
+    .inline-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .inline-top strong{font-size:18px;font-weight:820;letter-spacing:-.03em}
+    .inline-top p{font-size:13px;color:var(--muted);font-weight:650;margin-top:3px}
 
-    .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .balance-list { padding: 2px 14px; }
-    .balance-row { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
-    .balance-row:last-child { border-bottom: 0; }
-    .balance-row span { font-weight: 800; }
-    .balance-row strong { font-size: 17px; font-weight: 930; }
+    .task-list{padding:2px 14px}
+    .task-row{min-height:72px;display:grid;grid-template-columns:minmax(0,1fr) 62px 116px;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
+    .task-row:last-child{border-bottom:0}
+    .task-title{font-size:16px;font-weight:820;display:flex;align-items:center;gap:7px}
+    .task-meta{font-size:12px;color:var(--muted);font-weight:650;margin-top:1px}
+    .task-goal{text-align:center;font-weight:860;color:var(--text-soft)}
+    .task-goal span{color:var(--primary)}
+    .task-button{min-height:42px;border-radius:15px;font-size:13px;font-weight:820;background:var(--primary-soft);color:var(--primary);border:1px solid #cfeada}
+    .task-button.done{background:var(--surface-soft);color:var(--muted);border-color:var(--line)}
 
-    .action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .action-card { min-height: 104px; padding: 14px 10px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-    .action-card .big { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 15px; color: var(--blue); background: var(--blue-soft); margin-bottom: 9px; font-size: 20px; }
-    .action-card strong { font-size: 14px; font-weight: 900; }
-    .action-card small { color: var(--muted); font-size: 11px; font-weight: 720; margin-top: 2px; }
+    .quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .quick-card{padding:15px 10px;text-align:center;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .quick-icon{width:34px;height:34px;border-radius:14px;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:8px}
+    .quick-card strong{font-size:13px;font-weight:820}.quick-card small{font-size:11px;color:var(--muted);font-weight:650;margin-top:2px}
 
-    .calendar-card { padding: 14px; }
-    .calendar-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .calendar-top strong { font-size: 18px; font-weight: 930; letter-spacing: -.035em; text-transform: capitalize; }
-    .calendar-controls { display: flex; gap: 8px; }
-    .calendar-controls button { width: 38px; height: 38px; border-radius: 14px; background: var(--surface-soft); border: 1px solid var(--line); font-size: 22px; font-weight: 900; color: var(--text-soft); }
-    .week-grid, .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
-    .week-grid div { text-align: center; color: var(--muted); font-size: 11px; font-weight: 900; padding: 4px 0; }
-    .day-cell { min-height: 54px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-    .day-cell.empty { visibility: hidden; }
-    .day-cell.future { opacity: .42; }
-    .day-cell.today { border-color: #c7d9ff; box-shadow: 0 0 0 2px rgba(58, 115, 217, .08); }
-    .day-cell.selected { background: var(--primary-soft); border-color: #cfe7da; }
-    .day-number { font-size: 14px; font-weight: 940; }
-    .day-status { min-height: 16px; font-size: 11px; font-weight: 940; color: var(--muted); }
-    .day-status.good { color: var(--primary); }
-    .day-status.bad { color: var(--danger); }
-    .calendar-detail { margin-top: 12px; padding: 14px; border-radius: var(--radius-lg); border: 1px solid var(--line); background: var(--surface-soft); }
-    .calendar-detail strong { font-size: 15px; font-weight: 940; }
-    .calendar-detail p { color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .balance-list{padding:2px 14px}
+    .balance-row{min-height:56px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line)}
+    .balance-row:last-child{border-bottom:0}
+    .balance-row span{font-weight:760}.balance-row strong{font-size:17px;font-weight:850}
 
-    .stats-hero { padding: 18px; }
-    .stats-hero .eyebrow { color: var(--primary); font-size: 12px; font-weight: 900; margin-bottom: 4px; }
-    .stats-hero h2 { font-size: 34px; line-height: 1.04; font-weight: 940; letter-spacing: -.075em; }
-    .stats-hero p { color: var(--text-soft); font-size: 14px; font-weight: 700; margin-top: 7px; }
-    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .metric { padding: 16px; min-height: 112px; }
-    .metric span { color: var(--muted); font-size: 12px; font-weight: 860; }
-    .metric strong { display: block; font-size: 30px; font-weight: 940; letter-spacing: -.065em; margin-top: 5px; }
-    .metric small { display: block; color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 3px; }
-    .text-primary { color: var(--primary); }
-    .text-danger { color: var(--danger); }
-    .text-blue { color: var(--blue); }
+    .calendar-card{padding:14px}
+    .calendar-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .calendar-top strong{font-size:18px;font-weight:830;letter-spacing:-.03em;text-transform:capitalize}
+    .calendar-controls{display:flex;gap:8px}.calendar-controls button{width:36px;height:36px;border-radius:13px;background:var(--surface-soft);border:1px solid var(--line);font-size:22px;font-weight:780;color:var(--text-soft)}
+    .week-grid,.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}.week-grid div{text-align:center;font-size:11px;color:var(--muted);font-weight:820;padding-bottom:2px}
+    .day-cell{min-height:52px;border-radius:16px;border:1px solid var(--line);background:var(--surface-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+    .day-cell.empty{opacity:0;pointer-events:none}.day-cell.future{opacity:.42}.day-cell.today{border-color:#bfd6ff;box-shadow:0 0 0 2px rgba(52,120,246,.08)}.day-cell.selected{background:var(--primary-soft);border-color:#c9e8d8}
+    .day-number{font-size:14px;font-weight:850}.dot-row{display:flex;gap:3px}.dot{width:5px;height:5px;border-radius:50%;background:#cbd5e1}.dot.success{background:var(--primary)}.dot.danger{background:var(--danger)}.dot.warning{background:var(--orange)}
+    .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;font-size:12px;color:var(--muted);font-weight:720}.legend span{display:inline-flex;align-items:center;gap:5px}
 
-    .tip-card { padding: 16px; display: flex; gap: 12px; align-items: flex-start; background: linear-gradient(180deg, #fff, #fbfdfb); }
-    .tip-icon { width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); flex: none; }
-    .tip-card strong { font-size: 16px; font-weight: 940; }
-    .tip-card p { color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .insight-card{padding:16px;display:flex;gap:12px;align-items:flex-start;background:linear-gradient(180deg,#fff,#fbfcff)}
+    .insight-icon{width:40px;height:40px;border-radius:15px;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;flex:none;font-size:18px}
+    .insight-card strong{font-size:16px;font-weight:820}.insight-card p{font-size:13px;color:var(--muted);font-weight:650;margin-top:3px}
 
-    .empty { padding: 18px; border-radius: var(--radius-lg); border: 1px solid #f0dfbd; background: linear-gradient(180deg, #fffdf8, #fff); }
-    .empty strong { display: block; font-size: 16px; font-weight: 940; }
-    .empty p { color: var(--text-soft); font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .input{width:100%;height:50px;border:1px solid var(--line);border-radius:16px;background:var(--surface-soft);color:var(--text);padding:0 12px;font-size:15px;font-weight:720;outline:none}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.form-label{font-size:12px;color:var(--muted);font-weight:820;margin:0 0 6px 4px}
+    .calc-result{margin-top:12px;padding:14px;border-radius:18px;background:var(--surface-soft);border:1px solid var(--line);color:var(--text-soft);font-size:14px;line-height:1.58}
+    .wizard-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0}.wizard-step{height:7px;border-radius:999px;background:#e2e8f0}.wizard-step.on{background:var(--primary)}
 
-    .app-footer {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      max-width: 840px;
-      margin: 0 auto;
-      z-index: 22;
-      padding: 10px 10px 16px;
-      background: linear-gradient(180deg, rgba(247,245,239,0), rgba(247,245,239,.92) 24%, rgba(247,245,239,.98));
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
-    .nav-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 8px; border-radius: 26px; background: rgba(255, 255, 255, .9); border: 1px solid var(--line); box-shadow: 0 16px 34px rgba(23, 38, 58, .1); }
-    .nav-item { min-height: 56px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 900; }
-    .nav-item.active { color: var(--blue); background: var(--blue-soft); }
-    .nav-item .ico { font-size: 20px; line-height: 1; }
+    .history-row,.settings-row{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:12px 0}.history-row:last-child,.settings-row:last-child{border-bottom:0}.history-row b{font-size:15px}.history-row .date{font-size:12px;color:var(--muted);font-weight:650;margin-top:2px}.settings-row{cursor:pointer}.settings-row span{font-weight:780}.settings-row b{font-size:15px;color:var(--text-soft)}
+    .hint{padding:18px 4px;color:var(--muted);font-size:14px;font-weight:650;text-align:center}.muted{color:var(--muted)}.hidden{display:none!important}
+    .hint-card{padding:14px;border-radius:var(--radius-lg);background:linear-gradient(180deg,#fffdf7,#fff);border:1px solid #f1dfbd;box-shadow:var(--shadow-xs);display:flex;gap:12px;align-items:flex-start}
+    .hint-card.soft{background:linear-gradient(180deg,#f8fbff,#fff);border-color:#dce9ff}.hint-card.success{background:linear-gradient(180deg,#f5fff9,#fff);border-color:#d5efdf}
+    .hint-icon{width:38px;height:38px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:var(--orange-soft);color:var(--orange);font-size:18px;flex:none}.hint-card.soft .hint-icon{background:var(--blue-soft);color:var(--blue)}.hint-card.success .hint-icon{background:var(--primary-soft);color:var(--primary)}
+    .hint-content{min-width:0;flex:1}.hint-content strong{display:block;font-size:15px;font-weight:850;margin-bottom:3px}.hint-content p{font-size:13px;color:var(--text-soft);font-weight:650;line-height:1.45}.hint-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.hint-mini{min-height:34px;border-radius:12px;padding:0 11px;background:var(--surface-soft);border:1px solid var(--line);font-size:12px;font-weight:850}.hint-mini.primary{background:var(--primary-soft);color:var(--primary);border-color:#ccebd9}.hint-mini.blue{background:var(--blue-soft);color:var(--blue);border-color:#d8e8ff}
+    .onboarding-hero{height:88px;border-radius:24px;background:linear-gradient(135deg,var(--primary-soft),var(--blue-soft));display:flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:14px}.onboarding-progress{display:flex;gap:7px;margin:12px 0 14px}.onboarding-dot{height:7px;flex:1;border-radius:999px;background:#e2e8f0}.onboarding-dot.on{background:var(--primary)}
 
-    .modal { position: fixed; inset: 0; z-index: 50; display: none; align-items: flex-end; justify-content: center; padding: 0 10px; background: rgba(23, 38, 58, .22); }
-    .modal.show { display: flex; }
-    .sheet { width: 100%; max-width: 840px; max-height: 88vh; overflow: auto; background: rgba(255,255,255,.98); border: 1px solid rgba(255,255,255,.72); border-top-left-radius: 30px; border-top-right-radius: 30px; padding: 18px 14px 22px; box-shadow: 0 -18px 44px rgba(23, 38, 58, .15); }
-    .modal.full { align-items: stretch; padding: 0; background: rgba(247,245,239,.98); }
-    .modal.full .sheet { height: 100vh; max-height: 100vh; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; }
-    .modal-title { font-size: 22px; font-weight: 940; letter-spacing: -.045em; margin-bottom: 5px; }
-    .modal-sub { color: var(--muted); font-size: 14px; font-weight: 700; white-space: pre-line; margin-bottom: 12px; }
-    .modal-actions { display: grid; gap: 9px; }
+    .app-footer{position:fixed;left:0;right:0;bottom:0;max-width:860px;margin:0 auto;z-index:20;padding:10px 10px 16px;background:linear-gradient(180deg,rgba(245,247,251,0),rgba(245,247,251,.9) 22%,rgba(245,247,251,.98));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+    .nav-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:8px;border-radius:26px;background:rgba(255,255,255,.86);border:1px solid var(--line);box-shadow:var(--shadow-md)}
+    .nav-item{min-height:56px;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:11px;font-weight:820}.nav-item.active{background:var(--blue-soft);color:var(--blue)}.nav-item .icon{font-size:19px;line-height:1}
 
-    .input { width: 100%; min-height: 50px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-soft); color: var(--text); padding: 0 12px; font-weight: 820; outline: 0; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    .form-label { color: var(--muted); font-size: 12px; font-weight: 900; margin: 0 0 6px 4px; }
-    .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 12px 0; }
-    .seg button { min-height: 42px; border-radius: 14px; background: var(--surface-soft); border: 1px solid var(--line); color: var(--text-soft); font-weight: 900; }
-    .seg button.on { color: var(--blue); background: var(--blue-soft); border-color: #dbe8ff; }
-    .stepper-list { display: grid; gap: 10px; margin-top: 12px; }
-    .stepper-row { display: grid; grid-template-columns: 1fr 124px; align-items: center; gap: 10px; }
-    .stepper-row b { font-size: 15px; }
-    .stepper { height: 42px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-soft); display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; text-align: center; font-weight: 940; }
-    .stepper button { height: 100%; font-size: 20px; font-weight: 940; }
+    .modal{position:fixed;inset:0;background:rgba(20,31,48,.22);display:none;align-items:flex-end;justify-content:center;z-index:40;padding:0 10px}.modal.show{display:flex}.sheet{width:100%;max-width:860px;border-top-left-radius:30px;border-top-right-radius:30px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.72);box-shadow:0 -18px 44px rgba(23,38,58,.16);padding:18px 14px 22px;max-height:88vh;overflow:auto}.mtitle{font-size:21px;font-weight:870;letter-spacing:-.045em;margin-bottom:5px}.msub{font-size:14px;color:var(--muted);font-weight:650;white-space:pre-line;margin-bottom:12px}.modal-actions{display:grid;gap:9px}.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.seg button{border-radius:14px;background:var(--surface-soft);border:1px solid var(--line);padding:10px 8px;font-weight:850;color:var(--text-soft)}.seg button.on{background:var(--blue-soft);color:var(--blue);border-color:#d8e8ff}.planEdit{display:grid;gap:10px;margin-top:12px}.editLine{display:grid;grid-template-columns:1fr 120px;gap:10px;align-items:center}.stepper{height:42px;border-radius:14px;background:var(--surface-soft);display:grid;grid-template-columns:38px 1fr 38px;align-items:center;text-align:center;font-weight:870;border:1px solid var(--line)}.stepper button{height:100%;font-size:20px;font-weight:900}
+    .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(12px);padding:10px 14px;border-radius:999px;background:rgba(23,38,58,.95);color:#fff;font-size:13px;font-weight:780;opacity:0;pointer-events:none;transition:.18s ease;z-index:90;white-space:nowrap;max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.gate-card{max-width:360px;text-align:center;border-radius:var(--radius-xl);background:#fff;border:1px solid var(--line);box-shadow:var(--shadow-md);padding:24px}.gate-ico{font-size:40px}.gate-title{font-size:22px;font-weight:850;margin:10px}.gate-text{color:var(--muted);font-weight:650}
 
-    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-    .chip { min-height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-soft); color: var(--text-soft); font-size: 13px; font-weight: 900; }
-    .chip.on { color: var(--primary); background: var(--primary-soft); border-color: #cfe7da; }
-    .wizard-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 12px 0; }
-    .wizard-step { height: 7px; border-radius: 999px; background: #e6ebe3; }
-    .wizard-step.on { background: var(--primary); }
-    .result-box { padding: 14px; border-radius: 18px; background: var(--surface-soft); border: 1px solid var(--line); color: var(--text-soft); font-size: 14px; font-weight: 720; line-height: 1.62; }
+    @media(max-width:420px){body{padding-left:8px;padding-right:8px}.hero-title{font-size:31px}.focus-title{font-size:21px}.list-row{grid-template-columns:minmax(0,1fr) 53px 98px;padding:11px 12px}.status-pill{min-width:96px;font-size:11px}.task-row{grid-template-columns:minmax(0,1fr) 54px 104px}.quick-grid{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}.editLine{grid-template-columns:1fr 116px}.day-cell{min-height:47px}.button-row{grid-template-columns:1fr}.hint-card{padding:13px}.hint-actions{display:grid;grid-template-columns:1fr;width:100%}}
+  
 
-    .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%) translateY(12px); z-index: 90; max-width: calc(100% - 28px); opacity: 0; pointer-events: none; transition: .16s ease; padding: 10px 14px; border-radius: 999px; color: #fff; background: rgba(23, 38, 58, .96); font-size: 13px; font-weight: 860; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .snackbar { position: fixed; left: 10px; right: 10px; bottom: 96px; max-width: 820px; margin: 0 auto; min-height: 54px; z-index: 91; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 15px; border-radius: 18px; background: rgba(23, 38, 58, .97); color: #fff; box-shadow: 0 16px 34px rgba(23, 38, 58, .16); }
-    .snackbar.show { display: flex; animation: snack .16s ease; }
-    @keyframes snack { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-    .snackbar-text { font-size: 13px; font-weight: 760; }
-    .snackbar button { min-height: 36px; border-radius: 12px; background: rgba(255,255,255,.13); color: #fff; padding: 0 12px; font-size: 13px; font-weight: 930; white-space: nowrap; }
+    /* Calm Focus UI upgrade */
+    :root{--bg:#f7f5ef;--bg-soft:#f3f1e9;--surface:#ffffff;--surface-soft:#f8faf7;--surface-tint:#f2f6f1;--text:#17263a;--text-soft:#4f6072;--muted:#7a8794;--line:#e8ece7;--line-strong:#d9e1d7;--primary:#2f7d5b;--primary-soft:#eaf5ef;--blue:#3a73d9;--blue-soft:#eef4ff;--orange:#c98724;--orange-soft:#fff5e5;--danger:#c94d4d;--danger-soft:#fdeeee;--shadow-xs:none;--shadow-sm:0 4px 14px rgba(23,38,58,.05);--shadow-md:0 12px 28px rgba(23,38,58,.08);--radius-xl:24px;--radius-lg:18px;--radius-md:14px;--radius-sm:10px}
+    body{background:radial-gradient(circle at 18% -10%,rgba(47,125,91,.10),transparent 28%),radial-gradient(circle at 90% 2%,rgba(58,115,217,.08),transparent 26%),linear-gradient(180deg,#fbfaf6 0%,var(--bg) 100%)}
+    .svg-icon{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;display:block}.icon-button .svg-icon{width:21px;height:21px}.nav-item .svg-icon{width:22px;height:22px}.quick-icon .svg-icon{width:19px;height:19px}
+    .card{box-shadow:none}.hero-card{box-shadow:var(--shadow-sm)}.app-header{background:linear-gradient(180deg,rgba(251,250,246,.96),rgba(251,250,246,.76) 76%,rgba(251,250,246,0))}
+    .focus-card{padding:18px;border-color:#dde8dc;background:linear-gradient(180deg,#fff,#fbfdfb)}.focus-card.priority{border-color:#cfeada;box-shadow:var(--shadow-sm)}.focus-kicker{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:850;color:var(--primary);background:var(--primary-soft);border:1px solid #d5ecdf;border-radius:999px;padding:7px 10px;margin-bottom:12px}.focus-title{font-size:26px}.focus-meta{max-width:96%}
+    .daily-overview{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:14px}.overview-item{min-height:72px;border-radius:var(--radius-lg);background:var(--surface);border:1px solid var(--line);padding:12px;display:flex;flex-direction:column;justify-content:center}.overview-item span{font-size:11px;color:var(--muted);font-weight:850}.overview-item strong{font-size:17px;font-weight:900;letter-spacing:-.035em;margin-top:4px}.overview-item.primary{background:var(--primary-soft);border-color:#d5ecdf;color:var(--primary)}
+    .plan-hero{padding:18px;background:linear-gradient(180deg,#fff,#fbfdfb);border-color:#d5e6d8}.plan-hero-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.plan-hero h2{font-size:26px;font-weight:900;letter-spacing:-.06em;line-height:1.04}.plan-hero p{font-size:13px;color:var(--text-soft);font-weight:680;margin-top:5px}.plan-pill{padding:8px 11px;border-radius:999px;font-size:12px;font-weight:850;background:var(--blue-soft);color:var(--blue);white-space:nowrap}.task-list.open-card{padding:2px 14px;border-color:#d5e6d8}
+    .panel{border:1px solid var(--line);border-radius:var(--radius-xl);background:var(--surface);overflow:hidden;margin-bottom:12px}.panel-head{min-height:62px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;cursor:pointer}.panel-title{display:flex;align-items:center;gap:10px;font-weight:900}.panel-title .svg-icon{color:var(--text-soft)}.panel-sub{font-size:12px;color:var(--muted);font-weight:720;margin-top:2px}.panel-chevron{color:var(--muted);transition:transform .18s ease}.panel.open .panel-chevron{transform:rotate(180deg)}.panel-body{display:none;padding:0 14px 14px}.panel.open .panel-body{display:block}
+    .balance-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.balance-summary .overview-item{min-height:82px}.qazo-empty{padding:18px;border-radius:var(--radius-lg);background:linear-gradient(180deg,#fffdf8,#fff);border:1px solid #f0dfbd;text-align:left}.qazo-empty strong{display:block;font-size:16px;font-weight:900}.qazo-empty p{font-size:13px;color:var(--text-soft);font-weight:650;margin-top:4px}
+    .calendar-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}.calendar-summary .overview-item{min-height:64px;padding:10px}.calendar-detail{padding:14px;border-radius:var(--radius-lg);background:var(--surface-soft);border:1px solid var(--line);margin-top:12px}.calendar-detail strong{font-size:15px;font-weight:900}.calendar-detail p{font-size:13px;color:var(--muted);font-weight:650;margin-top:3px}
+    .advice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.advice-card{padding:14px;border-radius:var(--radius-lg);background:var(--surface);border:1px solid var(--line)}.advice-card span{font-size:11px;color:var(--muted);font-weight:850}.advice-card strong{display:block;font-size:20px;font-weight:900;letter-spacing:-.04em;margin-top:4px}.advice-card.primary{background:var(--primary-soft);border-color:#d5ecdf;color:var(--primary)}
+    .modal.fullscreen{align-items:stretch;padding:0;background:rgba(247,245,239,.96)}.modal.fullscreen .sheet{max-width:860px;margin:0 auto;width:100%;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:0;padding:18px 16px 28px;background:#fff;display:flex;flex-direction:column}.modal.fullscreen #modalBody{display:flex;flex-direction:column;min-height:100%}.wizard-spacer{flex:1}.wizard-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.wizard-count{font-size:12px;font-weight:850;color:var(--muted);background:var(--surface-soft);border:1px solid var(--line);border-radius:999px;padding:7px 10px}
+    .snackbar{position:fixed;left:10px;right:10px;bottom:96px;max-width:840px;margin:0 auto;min-height:54px;border-radius:18px;background:rgba(23,38,58,.96);color:#fff;display:none;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 15px;z-index:95;box-shadow:var(--shadow-md)}.snackbar.show{display:flex;animation:snack .18s ease}.snackbar-text{font-size:13px;font-weight:750;line-height:1.3}.snackbar-action{min-height:36px;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;padding:0 12px;font-size:13px;font-weight:900;white-space:nowrap}@keyframes snack{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    .notice-card{display:none;margin-bottom:12px;padding:14px;border-radius:var(--radius-lg);border:1px solid #f3d1d1;background:var(--danger-soft);color:var(--danger)}.notice-card.show{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.notice-card strong{display:block;font-weight:900}.notice-card p{font-size:13px;font-weight:650;margin-top:3px;color:#9d3b3b}.notice-card button{min-height:36px;border-radius:12px;padding:0 12px;background:#fff;border:1px solid #f3c6c6;color:var(--danger);font-weight:900}
+    .skeleton{position:relative;overflow:hidden;background:#edf1ea!important;color:transparent!important;border-color:#edf1ea!important}.skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);animation:shimmer 1.2s infinite}@keyframes shimmer{to{transform:translateX(100%)}}
+    @media(max-width:420px){.daily-overview,.calendar-summary,.advice-grid{grid-template-columns:1fr}.focus-title{font-size:23px}.plan-hero h2{font-size:23px}.balance-summary{grid-template-columns:1fr}.modal.fullscreen .sheet{padding-left:12px;padding-right:12px}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
-    @media (max-width: 480px) {
-      body { padding-left: 8px; padding-right: 8px; }
-      .overview-grid, .action-grid { grid-template-columns: 1fr; }
-      .list-row { grid-template-columns: minmax(0, 1fr) 52px 98px; padding-left: 12px; padding-right: 12px; }
-      .status-pill { min-width: 94px; font-size: 11px; }
-      .task-row { grid-template-columns: minmax(0, 1fr) 56px 104px; }
-      .balance-grid, .metric-grid, .form-row { grid-template-columns: 1fr; }
-      .btn-row { grid-template-columns: 1fr; }
-      .day-cell { min-height: 48px; border-radius: 14px; }
-      .hero h2, .qazo-top h2 { font-size: 24px; }
-      .stats-hero h2 { font-size: 30px; }
-      .stepper-row { grid-template-columns: 1fr 116px; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-    }
   </style>
 </head>
 <body>
-  <header class="app-header">
-    <button class="icon-button" type="button" onclick="openInfo()" aria-label="Ilova haqida">ⓘ</button>
-    <div class="app-title">
-      <h1 id="pageTitle">Namozlarim</h1>
-      <p id="pageSubtitle">Bugungi namozlar va qazo rejasi</p>
-    </div>
-    <button class="icon-button" type="button" onclick="openSettings()" aria-label="Sozlamalar">⚙</button>
-  </header>
-
-  <main>
-    <section id="screen-today" class="screen active">
-      <div id="todayHero" class="card hero section"></div>
-      <div id="todayOverview" class="overview-grid section"></div>
-
-      <div class="section-title">
-        <h2>Bugungi namozlar</h2>
-        <span id="todayDateLabel"></span>
+  <div id="app" class="app-shell">
+    <header class="app-header">
+      <button class="icon-button" onclick="openInfoModal()" aria-label="Ma’lumot"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7h.01"></path></svg></button>
+      <div class="app-title">
+        <h1 id="pageTitle">Namozlarim</h1>
+        <p id="pageSubtitle">Bugungi holat va reja</p>
       </div>
-      <div id="prayerList" class="card section"></div>
+      <button class="icon-button" onclick="openSettingsModal()" aria-label="Sozlamalar"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.1 2.1 0 0 1-2.97 2.97l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.06a1.8 1.8 0 0 0-1.09-1.65 1.8 1.8 0 0 0-1.98.36l-.04.04a2.1 2.1 0 1 1-2.97-2.97l.04-.04A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.09H2.9a2.1 2.1 0 0 1 0-4.2h.06A1.8 1.8 0 0 0 4.6 8.62a1.8 1.8 0 0 0-.36-1.98l-.04-.04A2.1 2.1 0 1 1 7.17 3.63l.04.04a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.09-1.65V2.3a2.1 2.1 0 0 1 4.2 0v.06a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.04-.04a2.1 2.1 0 1 1 2.97 2.97l-.04.04A1.8 1.8 0 0 0 19.4 8.6a1.8 1.8 0 0 0 1.65 1.09h.06a2.1 2.1 0 0 1 0 4.2h-.06A1.8 1.8 0 0 0 19.4 15Z"></path></svg></button>
+    </header>
 
-      <div id="todayQazo" class="card card-pad section"></div>
-    </section>
+    <main>
+      <div id="appNotice" class="notice-card"></div>
+      <section id="page-today" class="screen page active">
+        <div id="currentAction" class="card focus-card priority section"></div>
+        <div id="todayOverview" class="daily-overview section"></div>
 
-    <section id="screen-qazo" class="screen">
-      <div id="qazoHero" class="card qazo-hero section"></div>
+        <div class="section-header"><h2 data-i="today_prayers">Bugungi namozlar</h2><span id="todayDateLabel"></span></div>
+        <div id="prayerList" class="card list section"></div>
 
-      <div class="section-title">
-        <h2>Bugungi qazo vazifasi</h2>
-        <span>Reja bo‘yicha</span>
-      </div>
-      <div id="qazoTasks" class="card section"></div>
+        <div id="todayQazoMini" class="card card-body section"></div>
+      </section>
 
-      <div class="section-title">
-        <h2>Qazo qoldig‘i</h2>
-        <span>Namozlar kesimida</span>
-      </div>
-      <div id="qazoBalance" class="card section"></div>
+      <section id="page-plan" class="screen page">
+        <div id="planHint" class="hint-card success section hidden"></div>
+        <div id="planHero" class="card plan-hero section"></div>
 
-      <div class="section-title">
-        <h2>Qo‘shish va sozlash</h2>
-        <span>Kerakli amallar</span>
-      </div>
-      <div class="action-grid section">
-        <button class="action-card" type="button" onclick="openAddQazo()"><span class="big">＋</span><strong>Tez qo‘shish</strong><small>1 ta qazo qo‘shish</small></button>
-        <button class="action-card" type="button" onclick="openCalculator()"><span class="big">∑</span><strong>Kalkulyator</strong><small>Davr bo‘yicha hisoblash</small></button>
-        <button class="action-card" type="button" onclick="openPlan()"><span class="big">✓</span><strong>Rejani sozlash</strong><small>Kunlik tartib</small></button>
-      </div>
-    </section>
+        <div class="section-header"><h2 data-i="today_tasks">Bugungi vazifalar</h2><span data-i="qazo_plan">Qazo rejasi</span></div>
+        <div id="qazoTasks" class="card task-list open-card section"></div>
 
-    <section id="screen-calendar" class="screen">
-      <div class="card calendar-card section">
-        <div class="calendar-top">
-          <strong id="calendarMonth">—</strong>
-          <div class="calendar-controls">
-            <button type="button" onclick="changeMonth(-1)" aria-label="Oldingi oy">‹</button>
-            <button type="button" onclick="changeMonth(1)" aria-label="Keyingi oy">›</button>
-          </div>
+        <div id="planPanels" class="section"></div>
+      </section>
+
+      <section id="page-calendar" class="screen page">
+        <div class="card calendar-card section">
+          <div class="calendar-top"><strong id="calendarMonth">—</strong><div class="calendar-controls"><button onclick="changeMonth(-1)" aria-label="Oldingi oy">‹</button><button onclick="changeMonth(1)" aria-label="Keyingi oy">›</button></div></div>
+          <div id="calendarSummary" class="calendar-summary"></div>
+          <div id="weekGrid" class="week-grid"></div>
+          <div id="monthGrid" class="month-grid"></div>
+          <div class="legend"><span><i class="dot success"></i><span data-i="legend_prayed">O‘qildi</span></span><span><i class="dot danger"></i><span data-i="legend_missed">Qazo bor</span></span><span><i class="dot"></i><span data-i="legend_pending">Belgilanmagan</span></span></div>
+          <div id="calendarDayDetail" class="calendar-detail"></div>
         </div>
-        <div id="calendarSummary" class="overview-grid section"></div>
-        <div id="weekGrid" class="week-grid"></div>
-        <div id="monthGrid" class="month-grid"></div>
-        <div id="calendarDetail" class="calendar-detail"></div>
-      </div>
 
-      <div class="section-title">
-        <h2 id="selectedDateTitle">Kun holati</h2>
-        <span>Tanlangan kun</span>
-      </div>
-      <div id="calendarPrayerList" class="card section"></div>
-    </section>
+        <div id="calendarHint" class="hint-card soft section hidden"></div>
 
-    <section id="screen-stats" class="screen">
-      <div id="statsHero" class="card stats-hero section"></div>
-      <div id="statsTip" class="card tip-card section"></div>
-      <div id="metrics" class="metric-grid section"></div>
+        <div class="section-header"><h2 id="selectedDayTitle">Kun holati</h2><span data-i="by_day">Kun bo‘yicha</span></div>
+        <div id="calendarList" class="card list section"></div>
+      </section>
 
-      <div class="section-title">
-        <h2>Ko‘proq e’tibor kerak</h2>
-        <span>Qoldiq bo‘yicha</span>
-      </div>
-      <div id="statsBreakdown" class="card balance-list section"></div>
-    </section>
-  </main>
-
-  <footer class="app-footer">
-    <nav class="nav-bar" aria-label="Asosiy menyu">
-      <button id="nav-today" class="nav-item active" type="button" onclick="switchScreen('today')"><span class="ico">⌂</span><span>Bugun</span></button>
-      <button id="nav-qazo" class="nav-item" type="button" onclick="switchScreen('qazo')"><span class="ico">✓</span><span>Qazo</span></button>
-      <button id="nav-calendar" class="nav-item" type="button" onclick="switchScreen('calendar')"><span class="ico">▦</span><span>Kalendar</span></button>
-      <button id="nav-stats" class="nav-item" type="button" onclick="switchScreen('stats')"><span class="ico">↗</span><span>Natija</span></button>
-    </nav>
-  </footer>
-
-  <div id="modal" class="modal" onclick="closeModal(event)"><div id="sheet" class="sheet" onclick="event.stopPropagation()"><div id="modalBody"></div></div></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <div id="snackbar" class="snackbar" role="status" aria-live="polite"><div id="snackbarText" class="snackbar-text"></div><button id="snackbarAction" type="button"></button></div>
-
-  <script>
-    const tg = window.Telegram?.WebApp;
-    tg?.ready();
-    tg?.expand();
-
-    const PRAYERS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-    const QAZO = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'witr'];
-    const META = {
-      fajr: { name: 'Bomdod', icon: '🌙', time: '05:05' },
-      sunrise: { name: 'Quyosh', icon: '☀️', time: '06:24' },
-      dhuhr: { name: 'Peshin', icon: '☀️', time: '12:24' },
-      asr: { name: 'Asr', icon: '🌇', time: '16:58' },
-      maghrib: { name: 'Shom', icon: '🌆', time: '19:41' },
-      isha: { name: 'Xufton', icon: '🌙', time: '21:02' },
-      witr: { name: 'Vitr', icon: '⭐', time: '—' }
-    };
-
-    const STORAGE_KEY = 'namozlarim_redesign_state_v1';
-    const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(new Date());
-    const nowMin = () => {
-      const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).split(':').map(Number);
-      return h * 60 + m;
-    };
-    const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-    const monthShift = (ym, n) => { const [y,m] = ym.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
-    const esc = s => String(s ?? '').replace(/[&<>'"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[m]));
-    const count = n => Number(n || 0).toLocaleString('ru-RU') + ' ta';
-    const fmtDate = iso => new Intl.DateTimeFormat('uz-Latn-UZ', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso + 'T00:00:00'));
-    const fmtShort = iso => new Intl.DateTimeFormat('uz-Latn-UZ', { timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso + 'T00:00:00'));
-    const monthName = ym => new Intl.DateTimeFormat('uz-Latn-UZ', { timeZone: 'Asia/Tashkent', month: 'long', year: 'numeric' }).format(new Date(ym + '-01T00:00:00'));
-    const parseTime = t => { if (!t || t === '—') return 0; const [h,m] = t.split(':').map(Number); return h * 60 + m; };
-
-    function defaultState() {
-      const t = todayISO();
-      const prayers = Object.fromEntries(PRAYERS.map(k => [k, 'pending']));
-      return {
-        city: 'Toshkent',
-        selectedDate: t,
-        visibleMonth: t.slice(0, 7),
-        screen: 'today',
-        days: {
-          [t]: { prayers }
-        },
-        qazo: { fajr: 12, dhuhr: 18, asr: 9, maghrib: 6, isha: 14, witr: 4 },
-        completed: { fajr: 3, dhuhr: 2, asr: 1, maghrib: 1, isha: 2, witr: 0 },
-        plan: { enabled: true, targets: { fajr: 1, dhuhr: 1, asr: 1, maghrib: 0, isha: 1, witr: 0 }, doneToday: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, witr: 0 } },
-        history: []
-      };
-    }
-
-    let S = loadState();
-    let calcDraft = null;
-
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) return normalize(JSON.parse(raw));
-      } catch (e) {}
-      return normalize(defaultState());
-    }
-
-    function normalize(s) {
-      const t = todayISO();
-      s = { ...defaultState(), ...(s || {}) };
-      s.selectedDate ||= t;
-      s.visibleMonth ||= s.selectedDate.slice(0, 7);
-      s.days ||= {};
-      if (!s.days[t]) s.days[t] = { prayers: Object.fromEntries(PRAYERS.map(k => [k, 'pending'])) };
-      QAZO.forEach(k => {
-        s.qazo[k] = Number(s.qazo?.[k] || 0);
-        s.completed[k] = Number(s.completed?.[k] || 0);
-        s.plan.targets[k] = Number(s.plan?.targets?.[k] || 0);
-        s.plan.doneToday[k] = Number(s.plan?.doneToday?.[k] || 0);
-      });
-      Object.keys(s.days).forEach(date => {
-        s.days[date].prayers = { ...Object.fromEntries(PRAYERS.map(k => [k, 'pending'])), ...(s.days[date].prayers || {}) };
-      });
-      return s;
-    }
-
-    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); }
-    function day(iso = S.selectedDate) {
-      if (!S.days[iso]) S.days[iso] = { prayers: Object.fromEntries(PRAYERS.map(k => [k, 'pending'])) };
-      return S.days[iso];
-    }
-    function prayerStatus(k, iso = S.selectedDate) { return day(iso).prayers[k] || 'pending'; }
-    function qazoTotal() { return QAZO.reduce((a,k) => a + Number(S.qazo[k] || 0), 0); }
-    function completedTotal() { return QAZO.reduce((a,k) => a + Number(S.completed[k] || 0), 0); }
-    function targetTotal() { return QAZO.reduce((a,k) => a + Number(S.plan.targets[k] || 0), 0); }
-    function doneTodayTotal() { return QAZO.reduce((a,k) => a + Number(S.plan.doneToday[k] || 0), 0); }
-    function leftTodayTotal() { return Math.max(0, targetTotal() - doneTodayTotal()); }
-    function due(k) {
-      if (S.selectedDate < todayISO()) return true;
-      if (S.selectedDate > todayISO()) return false;
-      return nowMin() >= parseTime(META[k].time);
-    }
-    function nextPrayer() {
-      const now = nowMin();
-      return PRAYERS.find(k => parseTime(META[k].time) > now) || null;
-    }
-    function currentActionPrayer() { return PRAYERS.find(k => due(k) && prayerStatus(k) === 'pending') || null; }
-    function statusText(k) {
-      const st = prayerStatus(k);
-      if (st === 'prayed') return 'O‘qildi';
-      if (st === 'missed') return 'Qazo bo‘ldi';
-      return due(k) ? 'Belgilash kerak' : 'Vaqti kirmagan';
-    }
-    function statusClass(k) {
-      const st = prayerStatus(k);
-      if (st === 'prayed') return 'success';
-      if (st === 'missed') return 'danger';
-      return due(k) ? 'warning' : '';
-    }
-    function haptic(type = 'light') { try { tg?.HapticFeedback?.impactOccurred(type); } catch(e) {} }
-
-    function render() {
-      renderHeader();
-      renderToday();
-      renderQazo();
-      renderCalendar();
-      renderStats();
-      save();
-    }
-
-    function renderHeader() {
-      const meta = {
-        today: ['Namozlarim', 'Bugungi namozlar va qazo rejasi'],
-        qazo: ['Qazo', 'Qoldiq, reja va ado qilish'],
-        calendar: ['Kalendar', 'Kunlar bo‘yicha namoz holati'],
-        stats: ['Natija', 'Umumiy holat va yumshoq tavsiyalar']
-      }[S.screen] || ['Namozlarim', 'Bugungi holat'];
-      pageTitle.textContent = meta[0];
-      pageSubtitle.textContent = meta[1];
-      todayDateLabel.textContent = fmtDate(todayISO());
-    }
-
-    function renderToday() {
-      const action = currentActionPrayer();
-      const n = nextPrayer();
-      const marked = PRAYERS.filter(k => ['prayed', 'missed'].includes(prayerStatus(k))).length;
-      if (action) {
-        todayHero.innerHTML = `
-          <div class="hero-kicker">● Hozir bajariladigan amal</div>
-          <h2>${META[action].name} namozini belgilang</h2>
-          <p>Vaqti: ${META[action].time}. Bugun ${marked} / ${PRAYERS.length} ta namoz belgilangan.</p>
-          <div class="btn-row">
-            <button class="btn primary" type="button" onclick="setPrayer('${action}', 'prayed')">O‘qidim</button>
-            <button class="btn red" type="button" onclick="setPrayer('${action}', 'missed')">Qazo bo‘ldi</button>
-          </div>`;
-      } else if (n) {
-        todayHero.innerHTML = `
-          <div class="hero-kicker">● Keyingi namoz</div>
-          <h2>${META[n].name}</h2>
-          <p>Vaqti: ${META[n].time}. Vaqti kirganda belgilash tugmalari shu yerda chiqadi.</p>`;
-      } else {
-        todayHero.innerHTML = `
-          <div class="hero-kicker">● Bugungi jadval</div>
-          <h2>Bugungi namoz vaqtlari yakunlandi</h2>
-          <p>Kerak bo‘lsa, pastdagi ro‘yxatdan holatlarni qayta tahrirlashingiz mumkin.</p>`;
-      }
-
-      todayOverview.innerHTML = `
-        <div class="overview-card primary"><span>Bugungi holat</span><strong>${marked} / ${PRAYERS.length}</strong></div>
-        <div class="overview-card"><span>Qazo reja</span><strong>${doneTodayTotal()} / ${targetTotal()}</strong></div>
-        <div class="overview-card"><span>${esc(S.city)}</span><strong>${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date())}</strong></div>`;
-
-      prayerList.innerHTML = prayerRowsHTML(S.selectedDate);
-
-      const target = targetTotal(), done = doneTodayTotal(), left = leftTodayTotal();
-      const pct = target ? Math.min(100, Math.round(done / target * 100)) : 0;
-      todayQazo.innerHTML = `
-        <div class="qazo-top">
-          <div>
-            <h2 style="font-size:20px">Bugungi qazo rejasi</h2>
-            <p>${target ? `${done} / ${target} ado qilindi · ${count(left)} qoldi` : 'Kunlik reja hali belgilanmagan'}</p>
-          </div>
-          <button class="btn link" type="button" onclick="switchScreen('qazo')">Qazoga o‘tish</button>
+      <section id="page-stats" class="screen page">
+        <div class="card hero-card section">
+          <div class="eyebrow" data-i="result">Natija</div>
+          <div id="reportPercent" class="hero-title">0% ado qilindi</div>
+          <div id="reportMeta" class="hero-meta">—</div>
+          <div class="chip-row"><div id="reportTodayChip" class="chip primary">Bugun 0 / 0</div><div id="reportForecastChip" class="chip blue">—</div></div>
         </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-        ${target ? '' : '<button class="btn primary full" type="button" onclick="openPlan()">Reja tuzish</button>'}`;
-    }
 
-    function prayerRowsHTML(iso) {
-      return PRAYERS.map(k => {
-        const disabled = iso > todayISO() || (!due(k) && iso === todayISO());
-        const onclick = disabled ? `showToast('Bu namoz vaqti hali kirmagan')` : `openPrayerSheet('${k}')`;
-        return `<button class="list-row" type="button" onclick="${onclick}">
-          <span class="row-main">
-            <span class="row-icon">${META[k].icon}</span>
-            <span class="row-text"><strong>${META[k].name}</strong><small>${iso === todayISO() ? 'Bugun' : fmtShort(iso)}</small></span>
-          </span>
-          <span class="row-time">${META[k].time}</span>
-          <span class="status-pill ${statusClass(k)}">${statusText(k)}</span>
-        </button>`;
-      }).join('');
-    }
+        <div id="dynamicInsight" class="card insight-card section"></div>
+        <div id="planAdvice" class="advice-grid section"></div>
 
-    function renderQazo() {
-      const total = qazoTotal(), target = targetTotal(), done = doneTodayTotal(), left = leftTodayTotal();
-      const pct = target ? Math.min(100, Math.round(done / target * 100)) : 0;
-      qazoHero.innerHTML = `
-        <div class="qazo-top">
-          <div>
-            <h2>${left ? 'Bugungi vazifani davom ettiring' : target ? 'Bugungi reja bajarildi' : 'Qazo rejani boshlang'}</h2>
-            <p>${target ? `${done} / ${target} ado qilindi. ${left ? count(left) + ' qoldi.' : 'Alloh qabul qilsin.'}` : 'Har kuni nechta qazo ado qilishingizni belgilang.'}</p>
-          </div>
-          <div class="qazo-pill">${total ? count(total) : 'Qoldiq yo‘q'}</div>
+        <div class="metric-grid section">
+          <div class="card metric-card"><div class="metric-label" data-i="all_qazo">Jami qazo</div><div id="stActive" class="metric-value text-danger">0 ta</div></div>
+          <div class="card metric-card"><div class="metric-label" data-i="done_qazo">Ado qilingan</div><div id="stCompleted" class="metric-value text-primary">0 ta</div></div>
+          <div class="card metric-card"><div class="metric-label" data-i="today_done">Bugun</div><div id="stToday" class="metric-value text-primary">0 / 0</div></div>
+          <div class="card metric-card"><div class="metric-label" data-i="forecast">Prognoz</div><div id="stForecast" class="metric-value text-blue">—</div></div>
         </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-        ${target ? '' : '<button class="btn primary full" type="button" onclick="openPlan()">Reja tuzish</button>'}`;
 
-      const rows = QAZO.filter(k => S.qazo[k] > 0 || S.plan.targets[k] > 0).map(k => {
-        const target = S.plan.targets[k] || 0;
-        const done = S.plan.doneToday[k] || 0;
-        const left = Math.max(0, target - done);
-        const noBalance = S.qazo[k] <= 0;
-        const isDone = target > 0 && left <= 0;
-        return `<div class="task-row">
-          <div><div class="task-title">${META[k].icon} ${META[k].name}</div><div class="task-meta">Qoldiq: ${count(S.qazo[k])}</div></div>
-          <div class="task-count"><span>${done}</span> / ${target}</div>
-          <button class="task-action ${isDone || noBalance ? 'done' : ''}" type="button" ${isDone || noBalance ? 'disabled' : ''} onclick="completeQazo('${k}')">${isDone ? 'Bajarildi' : noBalance ? 'Qoldiq yo‘q' : 'Ado qildim'}</button>
-        </div>`;
-      }).join('');
-      qazoTasks.innerHTML = rows || `<div class="empty"><strong>Bugun uchun vazifa yo‘q</strong><p>Qazo qoldig‘i qo‘shing yoki kunlik reja tuzing.</p><button class="btn primary full" type="button" onclick="openAddQazo()">Qazo qo‘shish</button></div>`;
+        <div class="section-header"><h2 data-i="per_prayer_qazo">Har namoz bo‘yicha qoldiq</h2><span data-i="priority">Eng ko‘p qolganlar</span></div>
+        <div id="statsBreakdown" class="card balance-list section"></div>
+      </section>
+    </main>
 
-      const top = [...QAZO].sort((a,b) => S.qazo[b] - S.qazo[a])[0];
-      qazoBalance.innerHTML = `
-        <div class="card-pad">
-          <div class="balance-grid">
-            <div class="overview-card primary"><span>Jami qoldiq</span><strong>${count(total)}</strong></div>
-            <div class="overview-card"><span>Eng ko‘p</span><strong>${META[top].name} · ${count(S.qazo[top])}</strong></div>
-          </div>
-        </div>
-        <div class="balance-list">${QAZO.map(k => `<div class="balance-row"><span>${META[k].icon} ${META[k].name}</span><strong>${count(S.qazo[k])}</strong></div>`).join('')}</div>`;
-    }
+    <footer class="app-footer">
+      <nav class="nav-bar" aria-label="Asosiy menyu">
+        <div id="ni-today" class="nav-item active" onclick="switchPage('today')"><div class="icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7"></path><path d="M5.5 9.5v10h13v-10"></path><path d="M9.5 19.5v-6h5v6"></path></svg></div><div data-i="today">Bugun</div></div>
+        <div id="ni-plan" class="nav-item" onclick="switchPage('plan')"><div class="icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12"></path><path d="M8 12h12"></path><path d="M8 17h12"></path><path d="m3.7 7 1.1 1.1L6.8 6"></path><path d="m3.7 17 1.1 1.1L6.8 16"></path><path d="M4 12h2"></path></svg></div><div data-i="plan">Reja</div></div>
+        <div id="ni-calendar" class="nav-item" onclick="switchPage('calendar')"><div class="icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M8 3.5v3"></path><path d="M16 3.5v3"></path><path d="M4 9h16"></path><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01"></path></svg></div><div data-i="calendar">Kalendar</div></div>
+        <div id="ni-stats" class="nav-item" onclick="switchPage('stats')"><div class="icon"><svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m7 15 3-3 3 2 5-7"></path></svg></div><div data-i="stats">Natija</div></div>
+      </nav>
+    </footer>
+  </div>
 
-    function renderCalendar() {
-      calendarMonth.textContent = monthName(S.visibleMonth);
-      weekGrid.innerHTML = ['D', 'S', 'Ch', 'P', 'J', 'Sh', 'Y'].map(x => `<div>${x}</div>`).join('');
-      const [y, m] = S.visibleMonth.split('-').map(Number);
-      const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-      const first = new Date(Date.UTC(y, m - 1, 1));
-      const offset = (first.getUTCDay() + 6) % 7;
-      let html = ''.padStart(0, '');
-      for (let i = 0; i < offset; i++) html += '<button class="day-cell empty" type="button"></button>';
-      for (let d = 1; d <= daysInMonth; d++) {
-        const iso = `${S.visibleMonth}-${String(d).padStart(2, '0')}`;
-        const s = summaryForDay(iso);
-        let cls = 'day-status';
-        let label = '—';
-        if (s.missed > 0) { cls += ' bad'; label = '!' + s.missed; }
-        else if (s.prayed === PRAYERS.length) { cls += ' good'; label = '✓'; }
-        else if (s.prayed > 0) { cls += ' good'; label = '✓ ' + s.prayed; }
-        const cellCls = ['day-cell', iso === todayISO() ? 'today' : '', iso === S.selectedDate ? 'selected' : '', iso > todayISO() ? 'future' : ''].join(' ');
-        html += `<button class="${cellCls}" type="button" onclick="selectDate('${iso}')"><span class="day-number">${d}</span><span class="${cls}">${label}</span></button>`;
-      }
-      monthGrid.innerHTML = html;
-      const monthS = monthSummary(S.visibleMonth);
-      calendarSummary.innerHTML = `
-        <div class="overview-card primary"><span>O‘qilgan kunlar</span><strong>${monthS.good}</strong></div>
-        <div class="overview-card"><span>Qazo bor kunlar</span><strong>${monthS.bad}</strong></div>
-        <div class="overview-card"><span>Belgilanmagan</span><strong>${monthS.pending}</strong></div>`;
-      const selected = summaryForDay(S.selectedDate);
-      selectedDateTitle.textContent = fmtDate(S.selectedDate);
-      calendarDetail.innerHTML = `<strong>${fmtDate(S.selectedDate)}</strong><p>O‘qilgan: ${selected.prayed} · Qazo: ${selected.missed} · Belgilanmagan: ${selected.pending}</p>`;
-      calendarPrayerList.innerHTML = prayerRowsHTML(S.selectedDate);
-    }
+  <div id="modal" class="modal" onclick="closeModal(event)"><div class="sheet" onclick="event.stopPropagation()"><div id="modalBody"></div></div></div>
+  <div id="toast" class="toast"></div>
+  <div id="snackbar" class="snackbar"><div id="snackbarText" class="snackbar-text"></div><button id="snackbarAction" class="snackbar-action" type="button"></button></div>
 
-    function summaryForDay(iso) {
-      const d = day(iso);
-      const vals = PRAYERS.map(k => d.prayers[k] || 'pending');
-      return {
-        prayed: vals.filter(v => v === 'prayed').length,
-        missed: vals.filter(v => v === 'missed').length,
-        pending: vals.filter(v => v === 'pending').length
-      };
-    }
-    function monthSummary(ym) {
-      const [y,m] = ym.split('-').map(Number);
-      const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-      const out = { good: 0, bad: 0, pending: 0 };
-      for (let d = 1; d <= daysInMonth; d++) {
-        const iso = `${ym}-${String(d).padStart(2, '0')}`;
-        if (iso > todayISO()) continue;
-        const s = summaryForDay(iso);
-        if (s.missed > 0) out.bad++;
-        else if (s.prayed === PRAYERS.length) out.good++;
-        else out.pending++;
-      }
-      return out;
-    }
+<script>
+const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
+let D={lang:'uz'},loaded=false,currentPage='today',selectedDate=todayISO(),visibleMonth=todayISO().slice(0,7),calcSelected=['fajr','dhuhr','asr','maghrib','isha','witr'],calcStep=1,calcDraft={},onboardingStep=0,lastError=null,snackbarTimer=null;
+let calendarCache={},calendarLoadingMonths={};
+let openPanels={balance:false,actions:false,history:false};
+const UZ={
+app_title:'Namozlarim',
+today:'Bugun',
+plan:'Reja',
+calendar:'Kalendar',
+stats:'Natija',
+settings:'Sozlamalar',
+next_prayer:'Keyingi namoz',
+current_task:'Hozir bajariladigan ish',
+today_prayers:'Bugungi namozlar',
+fajr:'Bomdod',
+sunrise:'Quyosh',
+dhuhr:'Peshin',
+asr:'Asr',
+maghrib:'Shom',
+isha:'Xufton',
+witr:'Vitr',
+prayed:'O‘qildi',
+mark_prayed:'O‘qidim',
+missed:'Qazo bo‘ldi',
+not_set:'Belgilash kerak',
+not_time:'Vaqti kirmagan',
+readonly:'Ma’lumot',
+qazo:'Qazo',
+qazo_plan:'Qazo rejasi',
+qazo_balance:'Qazo balansi',
+remaining_qazo:'Qolgan qazo',
+qazo_calculator:'Qazo kalkulyatori',
+today_plan:'Bugungi reja',
+today_tasks:'Bugungi vazifalar',
+setup:'Sozlash',
+all_time:'umumiy qoldiq',
+forecast:'Taxminiy muddat',
+if_plan:'hozirgi reja bo‘yicha',
+actions:'Kerakli amallar',
+safe_flow:'Xato qilish qiyin',
+quick:'Tez qo‘shish',
+wizard:'Bosqichma-bosqich',
+daily:'Kunlik tartib',
+qazo_history:'Oxirgi amallar',
+undo:'Bekor qilish',
+by_day:'Tanlangan kun',
+result:'Umumiy natija',
+all_qazo:'Jami qazo',
+done_qazo:'Ado qilingan',
+today_done:'Bugun ado qilindi',
+per_prayer_qazo:'Namozlar bo‘yicha qoldiq',
+priority:'Eng ko‘p qolganlar',
+language:'Til',
+city:'Shahar',
+prayer_reminders:'Namoz vaqti eslatmalari',
+qazo_reminders:'Qazo rejasi eslatmalari',
+qazo_plan_settings:'Rejani sozlash',
+on:'Yoqilgan',
+off:'O‘chirilgan',
+day:'kun',
+hour:'soat',
+minute:'daqiqa',
+left:'qoldi',
+done:'ado qilindi',
+remaining:'qoldi',
+active_qazo:'qoldiq',
+today_done_line:'Bugun {target} tadan {done} tasi ado qilindi',
+completed_btn:'Ado qildim',
+completed_status:'Bajarildi',
+no_remaining_qazo:'Qoldiq yo‘q',
+add_done:'+1 ado qilindi',
+no_qazo:'Hali amal yo‘q',
+no_plan:'Reja hozircha yoqilmagan',
+select_lang:'Tilni tanlang',
+select_city:'Shaharni tanlang',
+cancel:'Bekor qilish',
+close:'Yopish',
+save:'Saqlash',
+saved:'Saqlandi',
+saving:'Saqlanmoqda...',
+error:'Xatolik yuz berdi',
+calculating:'Hisoblanmoqda...',
+adding:'Qo‘shilmoqda...',
+add_to_qazo:'Qazo balansiga qo‘shish',
+new:'yangi',
+duplicate:'takroriy',
+days:'Kunlar',
+total:'Jami',
+new_add:'Yangi qo‘shiladi',
+added:'Qo‘shildi',
+added_one:'1 ta qazo qo‘shildi',
+completed_one:'Qazo ado qilindi',
+undone:'Bekor qilindi',
+done_one:'Ado qildim',
+add_qazo:'Qazo qo‘shish',
+current_status:'Hozirgi holat',
+make_unset:'Belgini olib tashlash',
+future_blocked:'Kelajakdagi kunni belgilab bo‘lmaydi',
+lang_updated:'Til yangilandi',
+city_updated:'Shahar yangilandi',
+plan_title:'Kunlik qazo rejangiz',
+plan_desc:'Har kuni qaysi namozdan nechta qazo ado qilishingizni belgilang.',
+balanced:'Teng taqsimlash',
+focus:'Bitta namozga e’tibor',
+custom:'Qo‘lda',
+enabled:'Reja yoqilgan',
+disabled:'Reja o‘chirilgan',
+plan_saved:'Reja saqlandi',
+today_task_empty:'Bugun uchun qazo vazifasi yo‘q. Rejani sozlasangiz, vazifalar shu yerda ko‘rinadi.',
+finish_in:'Tugash muddati',
+from_date:'Boshlanish sanasi',
+to_date:'Tugash sanasi',
+calculate:'Hisoblash',
+continue:'Davom etish',
+back:'Ortga',
+confirm:'Tasdiqlash',
+select_period:'Davrni tanlang',
+select_prayers:'Qazo bo‘lgan namozlarni tanlang',
+confirm_calc:'Natijani tekshiring',
+calc_desc:'Avval davrni tanlang. Keyingi bosqichda qaysi namozlar qazo bo‘lganini belgilaysiz.',
+info_title:'Bu ilova nima qiladi?',
+info_text:'Namozlarim ilovasi bugungi namoz holatini belgilash, qazo namozlarni hisobga olish va ularni kunlik reja asosida ado qilishga yordam beradi. Maqsad — bugun nima qilish kerakligini aniq ko‘rsatish va qazo qoldig‘ini tartibli kamaytirish.'
+};
 
-    function renderStats() {
-      const total = qazoTotal();
-      const done = completedTotal();
-      const base = total + done;
-      const pct = base ? Math.round(done / base * 100) : 100;
-      const daily = Math.max(1, targetTotal());
-      const days = total ? Math.ceil(total / daily) : 0;
-      const top = [...QAZO].sort((a,b) => S.qazo[b] - S.qazo[a])[0];
-      statsHero.innerHTML = `<div class="eyebrow">Umumiy holat</div><h2>${count(total)} qoldiq</h2><p>Ado qilingan: ${count(done)} · umumiy progress: ${pct}%</p><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>`;
-      statsTip.innerHTML = `<div class="tip-icon">✦</div><div><strong>${total ? `${META[top].name} bo‘yicha ko‘proq e’tibor kerak` : 'Qazo qoldig‘i yo‘q'}</strong><p>${total ? `Hozirgi reja bilan taxminiy tugash muddati: ${days} kun. Bugun qo‘shimcha 1 ta ${META[top].name} ado qilsangiz, balans tezroq kamayadi.` : 'Bugungi namozlarni vaqtida belgilab boring. Reja davom etsa, tavsiyalar shu yerda ko‘rinadi.'}</p></div>`;
-      metrics.innerHTML = `
-        <div class="card metric"><span>Qazo qoldig‘i</span><strong class="text-danger">${count(total)}</strong><small>Namozlar kesimida</small></div>
-        <div class="card metric"><span>Ado qilingan</span><strong class="text-primary">${count(done)}</strong><small>Umumiy</small></div>
-        <div class="card metric"><span>Bugungi reja</span><strong class="text-primary">${doneTodayTotal()} / ${targetTotal()}</strong><small>Kunlik vazifa</small></div>
-        <div class="card metric"><span>Taxminiy muddat</span><strong class="text-blue">${total ? days + ' kun' : '—'}</strong><small>Hozirgi reja bo‘yicha</small></div>`;
-      statsBreakdown.innerHTML = [...QAZO].sort((a,b) => S.qazo[b] - S.qazo[a]).map(k => `<div class="balance-row"><span>${META[k].icon} ${META[k].name}</span><strong>${count(S.qazo[k])}</strong></div>`).join('');
-    }
+Object.assign(UZ,{
+page_subtitle_today:'Bugungi namozlar va qazo rejasi',page_subtitle_plan:'Qazo balansi va kunlik vazifalar',page_subtitle_calendar:'Kunlar bo‘yicha namozlar',page_subtitle_stats:'Umumiy natija va tavsiyalar',
+loading:'Yuklanmoqda',load_error_title:'Ma’lumotlarni yuklab bo‘lmadi',load_error_desc:'Internet aloqasini tekshiring yoki qayta urinib ko‘ring.',retry:'Qayta yuklash',
+plan_hint_empty_title:'Qazo balansini boshlang',plan_hint_empty_text:'Oldin qazo bo‘lgan namozlaringiz bo‘lsa, ularni tezkor qo‘shish yoki kalkulyator orqali kiriting. Shundan keyin ilova kunlik vazifalarni ko‘rsatadi.',plan_hint_setup_title:'Kunlik rejani belgilang',plan_hint_setup_text:'Qazo qoldig‘i bor, lekin bugungi reja hali belgilanmagan. Har kuni nechta ado qilishingizni kiritsangiz, progress avtomatik kuzatiladi.',open_calculator:'Kalkulyatorni ochish',understood:'Tushunarli',
+calendar_hint_title:'Belgilar',calendar_hint_text:'Yashil nuqta — o‘qilgan namozlar bor. Qizil nuqta — shu kunda qazo bor. Kulrang nuqta — hali belgilanmagan namozlar.',
+current_prayer_mark:'{prayer} namozini belgilang',time_label:'Vaqti',today_status:'Bugungi holat',marked_count:'{done} / {total} belgilangan',today_status_title:'Bugungi holat',remark_prayers:'Namozlarni qayta belgilash',remark_prayers_hint:'Kerak bo‘lsa, namozlarni qayta belgilashingiz mumkin.',today_schedule:'Bugungi jadval',schedule_loading:'Namoz vaqtlari yuklanmoqda yoki bugungi jadval yakunlangan.',schedule_finished:'Bugungi namoz vaqtlari yakunlandi',
+qazo_reja:'Qazo reja',daily_plan_missing:'Kunlik reja belgilanmagan',continue_plan:'Davom ettirish',open_today_plan:'Bugungi rejani ochish',today_plan_done_title:'Bugungi reja bajarildi',today_plan_done_text:'Alloh qabul qilsin. Ertangi reja avtomatik tayyor bo‘ladi.',make_plan:'Reja tuzish',
+remaining_none:'Qoldiq yo‘q',plan_desc_missing:'Har kuni nechta qazo ado qilishingizni belgilang.',qoldi:'qoldi',accepted:'Alloh qabul qilsin',qazo_empty_title:'Qazo balansi hali bo‘sh',qazo_empty_text:'Agar avval qazo bo‘lgan namozlaringiz bo‘lsa, ularni qo‘shing. Ilova sizga reja tuzib beradi.',daily_plan_empty_title:'Kunlik reja belgilanmagan',daily_plan_empty_text:'Har kuni nechta qazo ado qilishingizni tanlang. Shunda vazifalar shu yerda chiqadi.',
+total_remaining:'Jami qoldiq',most_remaining:'Eng ko‘p',add_quick:'Tez qo‘shish',step_by_step:'Bosqichma-bosqich',daily_order:'Kunlik tartib',can_undo:'Xato bo‘lsa bekor qilish mumkin',
+percent_done:'{percent}% ado qilindi',most_remaining_line:'Eng ko‘p qoldiq: {prayer} — {count}',no_qazo_remaining:'Qazo qoldig‘i yo‘q',stats_tip_active:'Hozirgi reja bilan taxminiy muddat: {days}. Agar bugun qo‘shimcha 1 ta {prayer} ado qilsangiz, balans tezroq tenglashadi.',stats_tip_empty:'Bugungi namozlarni vaqtida belgilab boring. Reja bajarilganda bu yerda maslahatlar ko‘rinadi.',current_plan:'Hozirgi reja',per_day:'Kuniga {count} ta',clean:'Toza',recommendation:'Tavsiya',keep_going:'Davom eting',
+legend_prayed:'O‘qildi',legend_missed:'Qazo bor',legend_pending:'Belgilanmagan',days_prayed:'O‘qilgan kunlar',days_missed:'Qazo bor kunlar',days_pending:'Belgilanmagan',selected_day_status:'{date} namozlari',prayed_count:'O‘qilgan',missed_count:'Qazo',pending_count:'Belgilanmagan',mark_prayers:'Namozlarni belgilash',weekdays:'D,S,Ch,P,J,Sh,Y',
+select_missed_prayer_for_date:'{date} uchun qazo bo‘lgan namozni tanlang.',missed_will_be_added_title:'Qazo balansiga qo‘shiladi',missed_will_be_added_text:'{prayer} namozi qazo sifatida saqlanadi va qazo balansiga qo‘shiladi. Keyin Reja bo‘limida uni ado qilib kamaytirishingiz mumkin.',yes_missed:'Ha, qazo bo‘ldi',saved_as_missed:'{prayer} qazo sifatida saqlandi',saved_as_prayed:'{prayer} o‘qildi deb saqlandi',complete_hint_title:'Qazo qoldig‘i kamaytiriladi',complete_hint_text:'{prayer} bo‘yicha 1 ta qazo ado qilingan deb belgilanadi. Qoldiq kamayadi, amal tarixga yoziladi va kerak bo‘lsa uni bekor qilish mumkin.',
+calc_step2_desc:'Tanlangan davrda qaysi namozlar qazo bo‘lganini belgilang.',confirm_calc_desc:'Balansga qo‘shishdan oldin natijani diqqat bilan tekshiring.',date_order_error:'Boshlanish sanasi tugash sanasidan keyin bo‘lishi mumkin emas',select_one_prayer:'Kamida bitta namozni tanlang',calc_checking:'Hisob-kitob tekshirilmoqda...',adding_to_balance:'Qazolar balansga qo‘shilmoqda...',
+reopen_guide:'Qo‘llanmani qayta ko‘rish',app_gate_title:'Ilova',registration_required_default:'Ilovadan foydalanish uchun avval botda /start buyrug‘i orqali ro‘yxatdan o‘ting.'
+});
+const I18N={uz:UZ,
+ru:{...UZ,
+app_title:'Мои намазы',today:'Сегодня',plan:'План',calendar:'Календарь',stats:'Итог',settings:'Настройки',next_prayer:'Следующий намаз',current_task:'Текущая задача',today_prayers:'Намазы сегодня',fajr:'Бомдод',sunrise:'Восход',dhuhr:'Пешин',asr:'Аср',maghrib:'Шом',isha:'Хуфтон',witr:'Витр',prayed:'Прочитано',mark_prayed:'Прочитал',missed:'Каза',not_set:'Нужно отметить',not_time:'Время не наступило',readonly:'Инфо',qazo:'Каза',qazo_plan:'План каза',qazo_balance:'Баланс каза',remaining_qazo:'Осталось каза',qazo_calculator:'Калькулятор каза',today_plan:'План на сегодня',today_tasks:'Задачи на сегодня',setup:'Настроить',all_time:'общий остаток',forecast:'Примерный срок',if_plan:'по текущему плану',actions:'Действия',safe_flow:'Безопасный порядок',quick:'Быстро',wizard:'Пошагово',daily:'Ежедневно',qazo_history:'Последние действия',undo:'Отменить',by_day:'Выбранный день',result:'Итог',all_qazo:'Всего каза',done_qazo:'Выполнено',today_done:'Сегодня выполнено',per_prayer_qazo:'Остаток по намазам',priority:'Больше всего осталось',language:'Язык',city:'Город',prayer_reminders:'Напоминания о намазе',qazo_reminders:'Напоминания плана каза',qazo_plan_settings:'Настроить план',on:'Включено',off:'Выключено',day:'дн.',hour:'ч',minute:'мин',left:'осталось',done:'выполнено',remaining:'осталось',active_qazo:'остаток',today_done_line:'Сегодня выполнено {done} из {target}',completed_btn:'Выполнил',completed_status:'Готово',no_remaining_qazo:'Остатка нет',add_done:'+1 выполнено',no_qazo:'Действий пока нет',no_plan:'План пока выключен',select_lang:'Выберите язык',select_city:'Выберите город',cancel:'Отмена',close:'Закрыть',save:'Сохранить',saved:'Сохранено',saving:'Сохраняется...',error:'Произошла ошибка',calculating:'Расчёт...',adding:'Добавляется...',add_to_qazo:'Добавить в баланс каза',new:'новое',duplicate:'повтор',days:'Дни',total:'Всего',new_add:'Будет добавлено',added:'Добавлено',added_one:'1 каза добавлено',completed_one:'Каза выполнено',undone:'Отменено',done_one:'Выполнил',add_qazo:'Добавить каза',current_status:'Текущий статус',make_unset:'Снять отметку',future_blocked:'Будущий день нельзя отмечать',lang_updated:'Язык обновлён',city_updated:'Город обновлён',plan_title:'Ваш ежедневный план каза',plan_desc:'Укажите, сколько каза каждого намаза вы хотите выполнять ежедневно.',balanced:'Равномерно',focus:'Фокус на один намаз',custom:'Вручную',enabled:'План включён',disabled:'План выключен',plan_saved:'План сохранён',today_task_empty:'На сегодня задач каза нет. Настройте план, и задачи появятся здесь.',finish_in:'Завершение',from_date:'Дата начала',to_date:'Дата окончания',calculate:'Рассчитать',continue:'Продолжить',back:'Назад',confirm:'Подтвердить',select_period:'Выберите период',select_prayers:'Выберите пропущенные намазы',confirm_calc:'Проверьте результат',calc_desc:'Сначала выберите период. На следующем шаге отметите, какие намазы были пропущены.',info_title:'Что делает приложение?',info_text:'Приложение помогает отмечать намазы за день, учитывать каза-намазы и выполнять их по ежедневному плану. Цель — ясно показать, что нужно сделать сегодня, и постепенно уменьшать остаток каза.',page_subtitle_today:'Сегодняшние намазы и план каза',page_subtitle_plan:'Баланс каза и ежедневные задачи',page_subtitle_calendar:'Намазы по дням',page_subtitle_stats:'Общий итог и рекомендации',loading:'Загрузка',load_error_title:'Не удалось загрузить данные',load_error_desc:'Проверьте интернет или попробуйте ещё раз.',retry:'Повторить',plan_hint_empty_title:'Начните баланс каза',plan_hint_empty_text:'Если у вас были пропущенные намазы, добавьте их быстро или через калькулятор. После этого приложение покажет ежедневные задачи.',plan_hint_setup_title:'Настройте ежедневный план',plan_hint_setup_text:'Остаток каза есть, но план на сегодня пока не задан. Укажите, сколько выполнять ежедневно, и прогресс будет считаться автоматически.',open_calculator:'Открыть калькулятор',understood:'Понятно',calendar_hint_title:'Обозначения',calendar_hint_text:'Зелёная точка — есть прочитанные намазы. Красная — в этот день есть каза. Серая — есть неотмеченные намазы.',current_prayer_mark:'Отметьте намаз {prayer}',time_label:'Время',today_status:'Сегодня',marked_count:'{done} / {total} отмечено',today_status_title:'Сегодняшний статус',remark_prayers:'Изменить отметки намазов',remark_prayers_hint:'При необходимости можно изменить отметки намазов.',today_schedule:'Расписание на сегодня',schedule_loading:'Время намаза загружается или расписание на сегодня завершено.',schedule_finished:'Намазы на сегодня завершены',qazo_reja:'План каза',daily_plan_missing:'Ежедневный план не задан',continue_plan:'Продолжить',open_today_plan:'Открыть план на сегодня',today_plan_done_title:'План на сегодня выполнен',today_plan_done_text:'Пусть Аллах примет. Завтрашний план подготовится автоматически.',make_plan:'Составить план',remaining_none:'Остатка нет',plan_desc_missing:'Укажите, сколько каза выполнять ежедневно.',qoldi:'осталось',accepted:'Пусть Аллах примет',qazo_empty_title:'Баланс каза пока пуст',qazo_empty_text:'Если у вас были пропущенные намазы, добавьте их. Приложение поможет составить план.',daily_plan_empty_title:'Ежедневный план не задан',daily_plan_empty_text:'Выберите, сколько каза выполнять ежедневно. Тогда задачи появятся здесь.',total_remaining:'Всего осталось',most_remaining:'Больше всего',add_quick:'Быстро добавить',step_by_step:'Пошагово',daily_order:'Ежедневный порядок',can_undo:'Ошибку можно отменить',percent_done:'{percent}% выполнено',most_remaining_line:'Больше всего осталось: {prayer} — {count}',no_qazo_remaining:'Остатка каза нет',stats_tip_active:'По текущему плану примерный срок: {days}. Если сегодня дополнительно выполнить 1 {prayer}, баланс выровняется быстрее.',stats_tip_empty:'Отмечайте сегодняшние намазы вовремя. Когда план будет выполняться, здесь появятся рекомендации.',current_plan:'Текущий план',per_day:'В день {count}',clean:'Чисто',recommendation:'Рекомендация',keep_going:'Продолжайте',legend_prayed:'Прочитано',legend_missed:'Есть каза',legend_pending:'Не отмечено',days_prayed:'Дни с прочитанными',days_missed:'Дни с каза',days_pending:'Не отмечено',selected_day_status:'Намазы за {date}',prayed_count:'Прочитано',missed_count:'Каза',pending_count:'Не отмечено',mark_prayers:'Отметить намазы',weekdays:'Пн,Вт,Ср,Чт,Пт,Сб,Вс',select_missed_prayer_for_date:'Выберите каза-намаз за {date}.',missed_will_be_added_title:'Будет добавлено в баланс каза',missed_will_be_added_text:'Намаз {prayer} будет сохранён как каза и добавлен в баланс. Затем в разделе План вы сможете выполнить его и уменьшить остаток.',yes_missed:'Да, это каза',saved_as_missed:'{prayer} сохранён как каза',saved_as_prayed:'{prayer} сохранён как прочитанный',complete_hint_title:'Остаток каза уменьшится',complete_hint_text:'По {prayer} будет отмечено 1 выполненное каза. Остаток уменьшится, действие запишется в историю, и его можно будет отменить.',calc_step2_desc:'Отметьте, какие намазы были пропущены в выбранный период.',confirm_calc_desc:'Внимательно проверьте результат перед добавлением в баланс.',date_order_error:'Дата начала не может быть позже даты окончания',select_one_prayer:'Выберите хотя бы один намаз',calc_checking:'Проверяем расчёт...',adding_to_balance:'Каза добавляются в баланс...',reopen_guide:'Посмотреть инструкцию ещё раз',app_gate_title:'Приложение',registration_required_default:'Чтобы пользоваться приложением, сначала зарегистрируйтесь в боте через /start.'},
+en:{...UZ,
+app_title:'My prayers',today:'Today',plan:'Plan',calendar:'Calendar',stats:'Result',settings:'Settings',next_prayer:'Next prayer',current_task:'Current task',today_prayers:'Today’s prayers',fajr:'Fajr',sunrise:'Sunrise',dhuhr:'Dhuhr',asr:'Asr',maghrib:'Maghrib',isha:'Isha',witr:'Witr',prayed:'Prayed',mark_prayed:'I prayed',missed:'Missed',not_set:'Needs marking',not_time:'Not due yet',readonly:'Info',qazo:'Qazo',qazo_plan:'Qazo plan',qazo_balance:'Qazo balance',remaining_qazo:'Remaining qazo',qazo_calculator:'Qazo calculator',today_plan:'Today’s plan',today_tasks:'Today’s tasks',setup:'Setup',all_time:'total remaining',forecast:'Estimated time',if_plan:'with current plan',actions:'Actions',safe_flow:'Safe flow',quick:'Quick',wizard:'Step by step',daily:'Daily',qazo_history:'Recent actions',undo:'Undo',by_day:'Selected day',result:'Result',all_qazo:'Total qazo',done_qazo:'Completed',today_done:'Done today',per_prayer_qazo:'Remaining by prayer',priority:'Most remaining',language:'Language',city:'City',prayer_reminders:'Prayer time reminders',qazo_reminders:'Qazo plan reminders',qazo_plan_settings:'Plan settings',on:'On',off:'Off',day:'days',hour:'h',minute:'min',left:'left',done:'completed',remaining:'left',active_qazo:'remaining',today_done_line:'Today {done} of {target} completed',completed_btn:'Done',completed_status:'Completed',no_remaining_qazo:'No remaining',add_done:'+1 completed',no_qazo:'No actions yet',no_plan:'Plan is off for now',select_lang:'Select language',select_city:'Select city',cancel:'Cancel',close:'Close',save:'Save',saved:'Saved',saving:'Saving...',error:'Something went wrong',calculating:'Calculating...',adding:'Adding...',add_to_qazo:'Add to qazo balance',new:'new',duplicate:'duplicate',days:'Days',total:'Total',new_add:'New to add',added:'Added',added_one:'1 qazo added',completed_one:'Qazo completed',undone:'Undone',done_one:'Done',add_qazo:'Add qazo',current_status:'Current status',make_unset:'Clear mark',future_blocked:'Future days cannot be marked',lang_updated:'Language updated',city_updated:'City updated',plan_title:'Your daily qazo plan',plan_desc:'Set how many qazo prayers you want to complete each day.',balanced:'Balanced',focus:'Focus one prayer',custom:'Custom',enabled:'Plan enabled',disabled:'Plan disabled',plan_saved:'Plan saved',today_task_empty:'No qazo tasks for today. Set a plan and tasks will appear here.',finish_in:'Finish in',from_date:'Start date',to_date:'End date',calculate:'Calculate',continue:'Continue',back:'Back',confirm:'Confirm',select_period:'Select period',select_prayers:'Select missed prayers',confirm_calc:'Review result',calc_desc:'First choose the period. On the next step, select which prayers were missed.',info_title:'What does this app do?',info_text:'The app helps you mark today’s prayers, track missed prayers, and complete them through a daily plan. The goal is to clearly show what to do today and gradually reduce the qazo balance.',page_subtitle_today:'Today’s prayers and qazo plan',page_subtitle_plan:'Qazo balance and daily tasks',page_subtitle_calendar:'Prayers by day',page_subtitle_stats:'Overall result and recommendations',loading:'Loading',load_error_title:'Could not load data',load_error_desc:'Check your internet connection or try again.',retry:'Retry',plan_hint_empty_title:'Start your qazo balance',plan_hint_empty_text:'If you have missed prayers, add them quickly or through the calculator. Then the app will show daily tasks.',plan_hint_setup_title:'Set a daily plan',plan_hint_setup_text:'You have qazo remaining, but today’s plan is not set yet. Enter how many to complete daily and progress will be tracked automatically.',open_calculator:'Open calculator',understood:'Got it',calendar_hint_title:'Legend',calendar_hint_text:'Green dot means there are prayed prayers. Red dot means this day has qazo. Gray dot means there are unmarked prayers.',current_prayer_mark:'Mark {prayer} prayer',time_label:'Time',today_status:'Today’s status',marked_count:'{done} / {total} marked',today_status_title:'Today’s status',remark_prayers:'Edit prayer marks',remark_prayers_hint:'You can edit prayer marks if needed.',today_schedule:'Today’s schedule',schedule_loading:'Prayer times are loading or today’s schedule is finished.',schedule_finished:'Today’s prayer times are finished',qazo_reja:'Qazo plan',daily_plan_missing:'Daily plan is not set',continue_plan:'Continue',open_today_plan:'Open today’s plan',today_plan_done_title:'Today’s plan is completed',today_plan_done_text:'May Allah accept it. Tomorrow’s plan will be prepared automatically.',make_plan:'Create plan',remaining_none:'No remaining',plan_desc_missing:'Set how many qazo prayers to complete each day.',qoldi:'left',accepted:'May Allah accept it',qazo_empty_title:'Qazo balance is empty',qazo_empty_text:'If you have missed prayers, add them. The app will help create a plan.',daily_plan_empty_title:'Daily plan is not set',daily_plan_empty_text:'Choose how many qazo prayers to complete daily. Tasks will appear here.',total_remaining:'Total remaining',most_remaining:'Most',add_quick:'Quick add',step_by_step:'Step by step',daily_order:'Daily routine',can_undo:'Mistakes can be undone',percent_done:'{percent}% completed',most_remaining_line:'Most remaining: {prayer} — {count}',no_qazo_remaining:'No qazo remaining',stats_tip_active:'With the current plan, estimated time: {days}. Completing 1 extra {prayer} today will balance things faster.',stats_tip_empty:'Mark today’s prayers on time. Recommendations will appear here as your plan progresses.',current_plan:'Current plan',per_day:'{count} per day',clean:'Clean',recommendation:'Tip',keep_going:'Keep going',legend_prayed:'Prayed',legend_missed:'Has qazo',legend_pending:'Unmarked',days_prayed:'Prayed days',days_missed:'Days with qazo',days_pending:'Unmarked',selected_day_status:'Prayers for {date}',prayed_count:'Prayed',missed_count:'Qazo',pending_count:'Unmarked',mark_prayers:'Mark prayers',weekdays:'Mon,Tue,Wed,Thu,Fri,Sat,Sun',select_missed_prayer_for_date:'Select missed prayer for {date}.',missed_will_be_added_title:'Will be added to qazo balance',missed_will_be_added_text:'{prayer} will be saved as missed and added to your qazo balance. Later you can complete it in the Plan section.',yes_missed:'Yes, missed',saved_as_missed:'{prayer} saved as missed',saved_as_prayed:'{prayer} saved as prayed',complete_hint_title:'Qazo balance will decrease',complete_hint_text:'1 qazo will be marked as completed for {prayer}. The remaining count will decrease, the action will be recorded, and you can undo it if needed.',calc_step2_desc:'Select which prayers were missed in the chosen period.',confirm_calc_desc:'Carefully review the result before adding it to your balance.',date_order_error:'Start date cannot be after end date',select_one_prayer:'Select at least one prayer',calc_checking:'Checking calculation...',adding_to_balance:'Adding qazos to balance...',reopen_guide:'View guide again',app_gate_title:'App',registration_required_default:'To use the app, first register in the bot with /start.'}};
+const LANGS=[{c:'uz',n:"O‘zbekcha"},{c:'ru',n:'Русский'},{c:'en',n:'English'}];
+const CITIES=['Toshkent','Andijon','Buxoro','Guliston','Jizzax','Navoiy','Namangan','Nukus','Qarshi','Samarqand','Termiz','Urganch',"Farg‘ona"];
+const DAILY=['fajr','sunrise','dhuhr','asr','maghrib','isha'];
+const STATUS=['fajr','dhuhr','asr','maghrib','isha'];
+const QAZO=['fajr','dhuhr','asr','maghrib','isha','witr'];
+const EMO={fajr:'🌙',sunrise:'☀️',dhuhr:'☀️',asr:'🌇',maghrib:'🌆',isha:'🌙',witr:'⭐'};
+const ICON={
+plus:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>`,calculator:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="3"></rect><path d="M9 7h6"></path><path d="M9 11h.01M12 11h.01M15 11h.01M9 15h.01M12 15h.01M15 15h.01"></path></svg>`,plan:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9 16.5 19 6.5"></path><path d="M4 19.5h16"></path></svg>`,chevron:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"></path></svg>`,prayer:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3.5 1.8 5.5 4.3 5.5 7.2a5.5 5.5 0 0 1-11 0c0-2.9 2-5.4 5.5-7.2Z"></path><path d="M7 20h10"></path></svg>`,checklist:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h12"></path><path d="M8 12h12"></path><path d="M8 17h12"></path><path d="m3.7 7 1.1 1.1L6.8 6"></path><path d="m3.7 17 1.1 1.1L6.8 16"></path><path d="M4 12h2"></path></svg>`,calendar:`<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M8 3.5v3"></path><path d="M16 3.5v3"></path><path d="M4 9h16"></path><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01"></path></svg>`
+};
 
-    function switchScreen(screen) {
-      haptic();
-      S.screen = screen;
-      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      document.getElementById('screen-' + screen).classList.add('active');
-      document.getElementById('nav-' + screen).classList.add('active');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      render();
-    }
 
-    function selectDate(iso) {
-      if (iso > todayISO()) return showToast('Kelajakdagi kunni belgilab bo‘lmaydi');
-      S.selectedDate = iso;
-      S.visibleMonth = iso.slice(0, 7);
-      switchScreen('calendar');
-    }
-    function changeMonth(n) { S.visibleMonth = monthShift(S.visibleMonth, n); render(); }
+const LS_PREFIX='nq_v2_';
+function seenFlag(key){try{return localStorage.getItem(LS_PREFIX+key)==='1'}catch(e){return false}}
+function setSeenFlag(key){try{localStorage.setItem(LS_PREFIX+key,'1')}catch(e){}}
+function onboardingSteps(){return [{icon:'👋',title:'Xush kelibsiz',text:'Bu ilova bugungi namozlarni belgilash, qazo namozlarni hisobga olish va ularni reja asosida ado qilishga yordam beradi.',button:'Boshlash'},{icon:'✓',title:'Bugungi namoz holati',text:'Namoz vaqti kirgach, holatni “O‘qidim” yoki “Qazo bo‘ldi” deb belgilang. Shunda kunlik holatingiz tartibli saqlanadi.',button:'Keyingisi'},{icon:'🧭',title:'Qazo rejasi',text:'Qazo qoldig‘ini kiriting va har kuni nechta ado qilishni belgilang. Ilova sizga kunlik vazifalarni ko‘rsatadi.',button:'Keyingisi'},{icon:'📊',title:'Natijani kuzating',text:'Kalendar va Natija bo‘limlarida kunlik holat, umumiy qoldiq va taxminiy tugash muddatini ko‘rib boring.',button:'Boshlash'}]}
+function shouldShowOnboarding(){if(D.onboarding_seen===true||D.settings?.onboarding_seen===true)return false;return !seenFlag('onboarding_seen')}
+function openOnboardingModal(force=false){onboardingStep=0;window.onboardingForce=!!force;renderOnboardingStep()}
+function onboardingDots(total){return `<div class="onboarding-progress">${Array.from({length:total},(_,i)=>`<div class="onboarding-dot ${i<=onboardingStep?'on':''}"></div>`).join('')}</div>`}
+function renderOnboardingStep(){let steps=onboardingSteps(),step=steps[onboardingStep],last=onboardingStep===steps.length-1;modalBody.innerHTML=`<div class="onboarding-hero">${step.icon}</div><div class="mtitle">${step.title}</div><div class="msub">${step.text}</div>${onboardingDots(steps.length)}<div class="button-row"><button class="btn ${last?'green':'primary'}" onclick="${last?'finishOnboarding()':'nextOnboardingStep()'}">${step.button}</button>${!last?`<button class="btn gray" onclick="finishOnboarding()">Keyinroq</button>`:''}</div>`;openModal()}
+function nextOnboardingStep(){onboardingStep=Math.min(onboardingStep+1,onboardingSteps().length-1);renderOnboardingStep()}
+async function finishOnboarding(){setSeenFlag('onboarding_seen');D.onboarding_seen=true;closeModal();try{await postAction({action:'set_onboarding_seen',value:true})}catch(e){console.warn('onboarding sync failed',e)}}
+function openActionHint(key,title,text,confirmText,onConfirm){window.pendingHintConfirm=onConfirm;modalBody.innerHTML=`<div class="mtitle">${title}</div><div class="msub">${text}</div><div class="modal-actions"><button class="btn green" onclick="confirmHintAction('${key}')">${confirmText}</button><button class="btn gray" onclick="closeModal()">Bekor qilish</button></div>`;openModal()}
+function confirmHintAction(key){setSeenFlag(key);let fn=window.pendingHintConfirm;window.pendingHintConfirm=null;closeModal();if(typeof fn==='function')fn()}
+function dismissHint(key){setSeenFlag(key);renderHints()}
 
-    function openPrayerSheet(k) {
-      modalBody.innerHTML = `<div class="modal-title">${META[k].icon} ${META[k].name}</div><div class="modal-sub">Vaqti: ${META[k].time}\nHozirgi holat: ${statusText(k)}</div><div class="modal-actions"><button class="btn primary" type="button" onclick="setPrayer('${k}', 'prayed')">O‘qidim</button><button class="btn red" type="button" onclick="setPrayer('${k}', 'missed')">Qazo sifatida belgilash</button><button class="btn gray" type="button" onclick="setPrayer('${k}', 'pending')">Belgini olib tashlash</button><button class="btn gray" type="button" onclick="closeModal()">Yopish</button></div>`;
-      openModal();
-    }
+function L(k){return (I18N[D.lang||'uz']||UZ)[k]||UZ[k]||k}function P(k){return L(k)}
+function haptic(t='light'){try{tg?.HapticFeedback?.impactOccurred(t)}catch(e){}}
+function todayISO(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tashkent'}).format(new Date())}
+function nowMin(){let f=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',hour:'2-digit',minute:'2-digit',hour12:false});let [h,m]=f.format(new Date()).split(':').map(Number);return h*60+m}
+function fmtDate(iso){if(!iso)return'—';let d=new Date(iso+'T00:00:00');return new Intl.DateTimeFormat(D.lang==='en'?'en-GB':D.lang==='ru'?'ru-RU':'uz-Latn-UZ',{timeZone:'Asia/Tashkent',day:'2-digit',month:'2-digit',year:'numeric'}).format(d)}
+function addDays(iso,n){let d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function addMonthsYM(ym,n){let [y,m]=ym.split('-').map(Number);let d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,7)}
+function clampDayToMonth(ym,day){let [y,m]=ym.split('-').map(Number);let max=new Date(Date.UTC(y,m,0)).getUTCDate();return `${ym}-${String(Math.min(day,max)).padStart(2,'0')}`}
+function count(n){return `${Number(n||0).toLocaleString('ru-RU')} ta`}function unit(n,u){return `${Number(n||0).toLocaleString('ru-RU')} ${u}`}
+function minutesText(min){min=Math.max(0,Math.floor(min||0));let h=Math.floor(min/60),m=min%60;return h?`${h} ${L('hour')} ${m} ${L('minute')}`:`${m} ${L('minute')}`}
+function qazoTotal(){return QAZO.reduce((a,k)=>a+(D.qazo?.[k]||0),0)}function todayDone(){return QAZO.reduce((a,k)=>a+(D.qazo_completed_today?.[k]||0),0)}
+function todayTarget(){return Number(D.qazo_plan?.today_target||0)}function qazoDailyTarget(){return Object.values(D.qazo_plan?.daily_targets||{}).reduce((a,b)=>a+(Number(b)||0),0)}
+function forecastDaysWith(daily){let total=qazoTotal(),d=Math.max(1,Number(daily||qazoDailyTarget()||1));return total?unit(Math.ceil(total/d),L('day')):'—'}
+function forecastDays(){return forecastDaysWith(qazoDailyTarget())}
+function safeCount(n){return count(Number(n||0))}
+function dateTitle(iso){let d=new Date((iso||todayISO())+'T00:00:00');return new Intl.DateTimeFormat(D.lang==='en'?'en-GB':D.lang==='ru'?'ru-RU':'uz-Latn-UZ',{timeZone:'Asia/Tashkent',day:'numeric',month:'long'}).format(d)}
+function monthName(ym){let d=new Date((ym||visibleMonth)+'-01T00:00:00');return new Intl.DateTimeFormat(D.lang==='en'?'en-GB':D.lang==='ru'?'ru-RU':'uz-Latn-UZ',{timeZone:'Asia/Tashkent',month:'long',year:'numeric'}).format(d)}
+function esc(s){return String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
+function isFuture(iso){return iso>todayISO()}
+function isDue(k){if(k==='sunrise')return true;if(!D.is_today)return !isFuture(selectedDate);if(D.can_mark&&k in D.can_mark)return !!D.can_mark[k];let t=D.prayer_times?.[k];if(!t)return false;let [h,m]=t.split(':').map(Number);return nowMin()>=h*60+m}
 
-    function setPrayer(k, status) {
-      if (S.selectedDate > todayISO()) return showToast('Kelajakdagi kunni belgilab bo‘lmaydi');
-      if (S.selectedDate === todayISO() && status !== 'pending' && !due(k)) return showToast('Bu namoz vaqti hali kirmagan');
-      const old = prayerStatus(k);
-      if (old === status) return closeModal();
-      day().prayers[k] = status;
-      if (status === 'missed' && old !== 'missed') S.qazo[k] += 1;
-      if (old === 'missed' && status !== 'missed') S.qazo[k] = Math.max(0, S.qazo[k] - 1);
-      closeModal();
-      render();
-      showSnackbar(status === 'prayed' ? 'O‘qildi deb saqlandi' : status === 'missed' ? 'Qazo sifatida saqlandi' : 'Belgi olib tashlandi', 'Bekor qilish', () => {
-        day().prayers[k] = old;
-        if (status === 'missed' && old !== 'missed') S.qazo[k] = Math.max(0, S.qazo[k] - 1);
-        if (old === 'missed' && status !== 'missed') S.qazo[k] += 1;
-        render();
-      });
-    }
+async function api(path,payload){let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:tg?.initData||'',...payload})});let data=await r.json().catch(()=>({}));if(r.status===403&&data.error==='registration_required'){showRegistrationRequired(data.message);return data}if(!r.ok){throw Error(data.message||data.error||L('error'))}return data}
+async function loadData(){try{if(!loaded)renderLoading();let data=await api('/api/data',{date:selectedDate,month:visibleMonth});if(data.error==='registration_required')return;Object.assign(D,normalizeData(data));selectedDate=D.selected_date||selectedDate;visibleMonth=(D.visible_month||visibleMonth||selectedDate.slice(0,7));loaded=true;lastError=null;updateCalendarCacheFromCurrent();if(data.ok===false)showToast(data.message||L('error'))}catch(e){console.warn(e);lastError=e.message||L('error');if(!loaded)emptyState();showToast(lastError)}renderAll();if(loaded)ensureCalendarMonthSummary(visibleMonth)}
+async function postAction(payload){let r=await api('/api/action',payload);if(r.ok===false||r.error)throw Error(r.message||r.error||L('error'));return r}
+function emptyQazo(){return {fajr:0,dhuhr:0,asr:0,maghrib:0,isha:0,witr:0}}
+function emptyPlan(){return {enabled:true,mode:'balanced',daily_targets:{fajr:1,dhuhr:1,asr:1,maghrib:1,isha:1,witr:0},tasks:Object.fromEntries(QAZO.map(k=>[k,{target:0,done:0,left:0,active:0}])),today_target:0,today_done:0,today_left:0}}
+function normalizeData(data){data=data||{};if(Array.isArray(data.cities)&&data.cities.length){CITIES.splice(0,CITIES.length,...data.cities)}let q={...emptyQazo(),...(data.qazo||{})},done={...emptyQazo(),...(data.qazo_completed_today||{})},plan=data.qazo_plan||emptyPlan();plan.tasks={...emptyPlan().tasks,...(plan.tasks||{})};plan.today_target=Number(plan.today_target||0);plan.today_done=Number(plan.today_done||0);plan.today_left=Number(plan.today_left||0);return {...data,qazo:q,qazo_completed_today:done,qazo_plan:plan,stats:{active:QAZO.reduce((a,k)=>a+(q[k]||0),0),completed:0,prayed:0,missed:0,...(data.stats||{})},qazo_history:data.qazo_history||[],calendar_summary:data.calendar_summary||data.month_summary||data.days||{},settings:data.settings||{prayer_reminders:true,qazo_reminders:true},onboarding_seen:data.onboarding_seen===true||data.settings?.onboarding_seen===true,is_today:(data.selected_date||selectedDate)===todayISO()}}
+function emptyState(){let t=todayISO();D=normalizeData({lang:D.lang||'uz',city:'Toshkent',today:t,selected_date:selectedDate,is_today:selectedDate===t,current_time:new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()),next_prayer:null,prayer_times:{},prayers:{},can_mark:{},qazo:emptyQazo(),qazo_completed_today:emptyQazo(),qazo_plan:emptyPlan(),qazo_history:[],stats:{active:0,completed:0,prayed:0,missed:0},settings:{prayer_reminders:true,qazo_reminders:true},calendar_summary:{},onboarding_seen:seenFlag('onboarding_seen')});loaded=true}
 
-    function completeQazo(k) {
-      if (S.qazo[k] <= 0) return showToast('Bu namoz bo‘yicha qoldiq yo‘q');
-      if ((S.plan.doneToday[k] || 0) >= (S.plan.targets[k] || 0) && S.plan.targets[k] > 0) return showToast('Bugungi vazifa bajarilgan');
-      S.qazo[k] -= 1;
-      S.completed[k] += 1;
-      S.plan.doneToday[k] += 1;
-      S.history.unshift({ id: Date.now(), type: 'complete', prayer: k, date: todayISO() });
-      render();
-      showSnackbar('Qazo ado qilindi', 'Bekor qilish', () => {
-        S.qazo[k] += 1;
-        S.completed[k] = Math.max(0, S.completed[k] - 1);
-        S.plan.doneToday[k] = Math.max(0, S.plan.doneToday[k] - 1);
-        render();
-      });
-    }
+const PAGE_META={today:()=>[L('app_title'),L('page_subtitle_today')],plan:()=>[L('plan'),L('page_subtitle_plan')],calendar:()=>[L('calendar'),L('page_subtitle_calendar')],stats:()=>[L('stats'),L('page_subtitle_stats')]};
+function setText(id,value){let el=document.getElementById(id);if(el)el.textContent=value}
+function applyI18n(){document.documentElement.lang=D.lang||'uz';document.querySelectorAll('[data-i]').forEach(el=>{el.textContent=L(el.dataset.i)})}
 
-    function openAddQazo() {
-      modalBody.innerHTML = `<div class="modal-title">Qazo qo‘shish</div><div class="modal-sub">Qaysi namoz bo‘yicha 1 ta qazo qo‘shmoqchisiz?</div><div class="modal-actions">${QAZO.map(k => `<button class="btn green" type="button" onclick="addQazo('${k}')">${META[k].icon} ${META[k].name} +1</button>`).join('')}<button class="btn gray" type="button" onclick="closeModal()">Yopish</button></div>`;
-      openModal();
-    }
-    function addQazo(k) {
-      S.qazo[k] += 1;
-      S.history.unshift({ id: Date.now(), type: 'add', prayer: k, date: todayISO() });
-      closeModal();
-      render();
-      showSnackbar('1 ta qazo qo‘shildi', 'Bekor qilish', () => { S.qazo[k] = Math.max(0, S.qazo[k] - 1); render(); });
-    }
+function renderLoading(){
+  let ca=document.getElementById('currentAction');if(ca)ca.innerHTML=`<div class="focus-kicker skeleton">${L('loading')}</div><div class="focus-title skeleton" style="height:32px;width:70%;border-radius:12px"></div><div class="focus-meta skeleton" style="height:16px;width:88%;border-radius:9px;margin-top:12px"></div><div class="button-row"><div class="btn skeleton"></div><div class="btn skeleton"></div></div>`;
+  let ov=document.getElementById('todayOverview');if(ov)ov.innerHTML=Array.from({length:3},()=>`<div class="overview-item skeleton"></div>`).join('');
+  let pl=document.getElementById('prayerList');if(pl)pl.innerHTML=Array.from({length:5},()=>`<div class="list-row"><div class="row-main"><div class="row-icon skeleton"></div><div class="row-label"><strong class="skeleton" style="height:16px;width:90px;border-radius:8px"></strong><small class="skeleton" style="height:12px;width:70px;border-radius:8px;margin-top:6px"></small></div></div><div class="row-time skeleton" style="height:18px;border-radius:8px"></div><div class="status-pill skeleton"></div></div>`).join('');
+}
 
-    function openPlan() {
-      const d = JSON.parse(JSON.stringify(S.plan.targets));
-      modalBody.innerHTML = `<div class="modal-title">Kunlik qazo rejasi</div><div class="modal-sub">Har kuni qaysi namozdan nechta qazo ado qilishingizni belgilang.</div><div class="seg"><button type="button" onclick="presetPlan('balanced')">Teng</button><button type="button" onclick="presetPlan('focus')">Fokus</button><button type="button" class="on">Qo‘lda</button></div><div id="planEditor" class="stepper-list"></div><button class="btn primary full" type="button" onclick="savePlan()">Saqlash</button><button class="btn gray full" type="button" onclick="closeModal()">Bekor qilish</button>`;
-      window.planDraft = d;
-      renderPlanEditor();
-      openModal();
-    }
-    function renderPlanEditor() {
-      planEditor.innerHTML = QAZO.map(k => `<div class="stepper-row"><div>${META[k].icon} <b>${META[k].name}</b></div><div class="stepper"><button type="button" onclick="changePlan('${k}', -1)">−</button><span>${window.planDraft[k] || 0}</span><button type="button" onclick="changePlan('${k}', 1)">+</button></div></div>`).join('');
-    }
-    function changePlan(k, n) { window.planDraft[k] = Math.max(0, Math.min(99, (window.planDraft[k] || 0) + n)); renderPlanEditor(); }
-    function presetPlan(type) {
-      if (type === 'balanced') window.planDraft = { fajr: 1, dhuhr: 1, asr: 1, maghrib: 1, isha: 1, witr: 0 };
-      if (type === 'focus') {
-        const top = [...QAZO].sort((a,b) => S.qazo[b] - S.qazo[a])[0];
-        window.planDraft = Object.fromEntries(QAZO.map(k => [k, k === top ? 3 : 0]));
-      }
-      renderPlanEditor();
-    }
-    function savePlan() { S.plan.targets = { ...S.plan.targets, ...window.planDraft }; closeModal(); render(); showToast('Reja saqlandi'); }
+function renderAll(){applyI18n();renderHeader();renderClock();renderCurrentAction();renderTodayOverview();renderPrayerRows();renderTodayQazoMini();renderPlan();renderStats();renderCalendar();renderHints()}
+function renderHeader(){let meta=(PAGE_META[currentPage]||PAGE_META.today)();setText('pageTitle',meta[0]);setText('pageSubtitle',meta[1]);setText('cityChip',D.city||'Toshkent');setText('todayChip',fmtDate(D.today||todayISO()));setText('todayDateLabel',dateTitle(D.selected_date||selectedDate));renderAppNotice()}
+function renderAppNotice(){let n=document.getElementById('appNotice');if(!n)return;if(lastError){n.className='notice-card show';n.innerHTML=`<div><strong>${L('load_error_title')}</strong><p>${esc(lastError)}. ${L('load_error_desc')}</p></div><button onclick="retryLoad()">${L('retry')}</button>`}else{n.className='notice-card';n.innerHTML=''}}
+function retryLoad(){lastError=null;renderAppNotice();loadData()}
+function renderHints(){let plan=document.getElementById('planHint'),cal=document.getElementById('calendarHint');if(plan){let total=qazoTotal(),target=todayTarget();if(!seenFlag('plan_hint_done')&&(total===0||target===0)){let empty=total===0;plan.className='hint-card success section';plan.innerHTML=`<div class="hint-icon">💡</div><div class="hint-content"><strong>${empty?L('plan_hint_empty_title'):L('plan_hint_setup_title')}</strong><p>${empty?L('plan_hint_empty_text'):L('plan_hint_setup_text')}</p><div class="hint-actions"><button class="hint-mini primary" onclick="${empty?'openCalcWizard()':'openPlanModal()'}">${empty?L('open_calculator'):L('qazo_plan_settings')}</button><button class="hint-mini" onclick="dismissHint('plan_hint_done')">${L('understood')}</button></div></div>`}else{plan.classList.add('hidden')}}if(cal){if(!seenFlag('calendar_hint_done')){cal.className='hint-card soft section';cal.innerHTML=`<div class="hint-icon">◫</div><div class="hint-content"><strong>${L('calendar_hint_title')}</strong><p>${L('calendar_hint_text')}</p><div class="hint-actions"><button class="hint-mini" onclick="dismissHint('calendar_hint_done')">${L('understood')}</button></div></div>`}else{cal.classList.add('hidden')}}}
+function renderClock(){let current=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());setText('clock',current);let n=D.next_prayer;if(n){setText('nextName',P(n.key)||n.name||'—');setText('nextLeft',`${D.prayer_times?.[n.key]||''} · ${minutesText(n.minutes_left)} ${L('left')}`)}else{setText('nextName','—');setText('nextLeft',L('schedule_finished'))}}
+function duePendingPrayer(){return STATUS.find(k=>isDue(k)&&(D.prayers?.[k]||'pending')==='pending')}
+function latestDuePrayer(){let due=STATUS.filter(k=>isDue(k));return due[due.length-1]||null}
+function renderCurrentAction(){let node=document.getElementById('currentAction');if(!node)return;let k=duePendingPrayer(),latest=latestDuePrayer(),n=D.next_prayer;let marked=STATUS.filter(x=>['prayed','missed'].includes(D.prayers?.[x])).length;if(k){node.classList.add('priority');node.innerHTML=`<div class="focus-kicker">${ICON.prayer} ${L('current_task')}</div><div class="focus-top"><div><div class="focus-title">${L('current_prayer_mark').replace('{prayer}',P(k))}</div><div class="focus-meta">${L('time_label')}: ${D.prayer_times?.[k]||'--:--'} · ${L('today_status')} ${L('marked_count').replace('{done}',marked).replace('{total}',STATUS.length)}</div></div><div class="focus-badge">${L('not_set')}</div></div><div class="button-row"><button class="btn green" onclick="setPrayerStatus('${k}','prayed')">${L('mark_prayed')}</button><button class="btn red" onclick="setPrayerStatus('${k}','missed')">${L('missed')}</button></div>`;return}
+if(latest){node.classList.remove('priority');node.innerHTML=`<div class="focus-kicker">${ICON.prayer} ${L('today_status_title')}</div><div class="focus-top"><div><div class="focus-title">${P(latest)} — ${statusLabel(latest)}</div><div class="focus-meta">${L('remark_prayers_hint')} ${L('today_status')} ${L('marked_count').replace('{done}',marked).replace('{total}',STATUS.length)}.</div></div><div class="focus-badge">${statusLabel(latest)}</div></div><button class="btn blue full" onclick="openPrayerModal('${latest}')">${L('remark_prayers')}</button>`;return}
+node.classList.remove('priority');node.innerHTML=`<div class="focus-kicker">${ICON.prayer} ${L('next_prayer')}</div><div class="focus-top"><div><div class="focus-title">${n?P(n.key):L('today_schedule')}</div><div class="focus-meta">${n?minutesText(n.minutes_left)+' '+L('left'):L('schedule_loading')}</div></div><div class="focus-badge">${D.prayer_times?.[n?.key]||'--:--'}</div></div>`}
+function statusLabel(k,readonly=false){if(readonly)return L('readonly');let st=D.prayers?.[k]||'pending';if(st==='prayed')return L('prayed');if(st==='missed')return L('missed');return isDue(k)?L('not_set'):L('not_time')}
+function statusClass(k,readonly=false){if(readonly)return 'info';let st=D.prayers?.[k]||'pending';if(st==='prayed')return 'success';if(st==='missed')return 'danger';return isDue(k)?'warning':'neutral'}
+function prayerRowsHTML(){return DAILY.map(k=>{let readonly=k==='sunrise',due=readonly||isDue(k),time=D.prayer_times?.[k]||'--:--',small=readonly?L('readonly'):(D.is_today?L('today'):dateTitle(D.selected_date||selectedDate));let click=readonly?'':due?`onclick="openPrayerModal('${k}')"`:`onclick="showToast('${L('not_time')}')"`;return `<div class="list-row" ${click}><div class="row-main"><div class="row-icon">${EMO[k]}</div><div class="row-label"><strong>${P(k)}</strong><small>${small}</small></div></div><div class="row-time">${time}</div><button class="status-pill ${statusClass(k,readonly)}" type="button">${statusLabel(k,readonly)}</button></div>`}).join('')}
+function renderPrayerRows(){let html=prayerRowsHTML();let p=document.getElementById('prayerList');if(p)p.innerHTML=html;let c=document.getElementById('calendarList');if(c)c.innerHTML=html}
 
-    function openCalculator() {
-      calcDraft = { step: 1, start: addDays(todayISO(), -30), end: todayISO(), selected: [...QAZO], result: null };
-      renderCalculator();
-    }
-    function calcSteps() { return `<div class="wizard-steps"><div class="wizard-step ${calcDraft.step >= 1 ? 'on' : ''}"></div><div class="wizard-step ${calcDraft.step >= 2 ? 'on' : ''}"></div><div class="wizard-step ${calcDraft.step >= 3 ? 'on' : ''}"></div></div>`; }
-    function renderCalculator() {
-      let body = '';
-      if (calcDraft.step === 1) {
-        body = `<div class="modal-title">Davrni tanlang</div><div class="modal-sub">Avval qazo hisoblanadigan davrni tanlang.</div>${calcSteps()}<div class="form-row"><div><div class="form-label">Boshlanish sanasi</div><input id="calcStart" class="input" type="date" value="${calcDraft.start}" max="${todayISO()}"></div><div><div class="form-label">Tugash sanasi</div><input id="calcEnd" class="input" type="date" value="${calcDraft.end}" max="${todayISO()}"></div></div><button class="btn primary full" type="button" onclick="calcNextDates()">Davom etish</button><button class="btn gray full" type="button" onclick="closeModal()">Yopish</button>`;
-      }
-      if (calcDraft.step === 2) {
-        body = `<div class="modal-title">Namozlarni tanlang</div><div class="modal-sub">Tanlangan davrdagi HAR BIR KUNDA qazo bo‘lgan namozlarni belgilang. Agar ayrim kunlar farq qilsa, avval umumiy davrni qo‘shing, keyin kalendardan tuzating.</div>${calcSteps()}<div class="chip-row">${QAZO.map(k => `<button class="chip ${calcDraft.selected.includes(k) ? 'on' : ''}" type="button" onclick="toggleCalc('${k}')">${META[k].icon} ${META[k].name}</button>`).join('')}</div><div class="btn-row"><button class="btn gray" type="button" onclick="calcDraft.step=1;renderCalculator()">Ortga</button><button class="btn primary" type="button" onclick="calcPreview()">Hisoblash</button></div>`;
-      }
-      if (calcDraft.step === 3) {
-        const r = calcDraft.result;
-        body = `<div class="modal-title">Natijani tekshiring</div><div class="modal-sub">Balansga qo‘shishdan oldin hisobni diqqat bilan tekshiring.</div>${calcSteps()}<div class="result-box"><b>Davr:</b> ${fmtShort(r.start)} — ${fmtShort(r.end)}<br><b>Kunlar:</b> ${r.days}<br><b>Tanlangan namozlar:</b> ${r.names}<br><b>Yangi qo‘shiladi:</b> ${count(r.total)}</div><div class="btn-row"><button class="btn gray" type="button" onclick="calcDraft.step=2;renderCalculator()">Ortga</button><button class="btn primary" type="button" onclick="applyCalc()">Balansga qo‘shish</button></div>`;
-      }
-      modalBody.innerHTML = body;
-      openModal('full');
-    }
-    function calcNextDates() {
-      calcDraft.start = calcStart.value;
-      calcDraft.end = calcEnd.value;
-      if (!calcDraft.start || !calcDraft.end) return showToast('Sanalarni kiriting');
-      if (calcDraft.start > calcDraft.end) return showToast('Boshlanish sanasi tugash sanasidan keyin bo‘lmasin');
-      calcDraft.step = 2;
-      renderCalculator();
-    }
-    function toggleCalc(k) { calcDraft.selected = calcDraft.selected.includes(k) ? calcDraft.selected.filter(x => x !== k) : [...calcDraft.selected, k]; renderCalculator(); }
-    function calcPreview() {
-      if (!calcDraft.selected.length) return showToast('Kamida bitta namozni tanlang');
-      const days = Math.round((new Date(calcDraft.end + 'T00:00:00Z') - new Date(calcDraft.start + 'T00:00:00Z')) / 86400000) + 1;
-      calcDraft.result = { start: calcDraft.start, end: calcDraft.end, days, total: days * calcDraft.selected.length, names: calcDraft.selected.map(k => META[k].name).join(', ') };
-      calcDraft.step = 3;
-      renderCalculator();
-    }
-    function applyCalc() {
-      const r = calcDraft.result;
-      calcDraft.selected.forEach(k => S.qazo[k] += r.days);
-      closeModal();
-      render();
-      showSnackbar(count(r.total) + ' qazo balansga qo‘shildi', 'Bekor qilish', () => {
-        calcDraft.selected.forEach(k => S.qazo[k] = Math.max(0, S.qazo[k] - r.days));
-        render();
-      });
-    }
+function renderTodayOverview(){let node=document.getElementById('todayOverview');if(!node)return;let marked=STATUS.filter(k=>['prayed','missed'].includes(D.prayers?.[k])).length,done=Number(D.qazo_plan?.today_done||0),target=Number(D.qazo_plan?.today_target||0);let clock=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());node.innerHTML=`<div class="overview-item primary"><span>${L('today_status_title')}</span><strong>${marked} / ${STATUS.length}</strong></div><div class="overview-item"><span>${L('qazo_reja')}</span><strong>${done} / ${target||0}</strong></div><div class="overview-item"><span>${D.city||'Toshkent'}</span><strong>${clock}</strong></div>`}
+function todayDoneLine(done,target){return L('today_done_line').replace('{done}',Number(done||0)).replace('{target}',Number(target||0))}
+function renderTodayQazoMini(){let p=D.qazo_plan||{},done=Number(p.today_done||0),target=Number(p.today_target||0),left=Math.max(0,target-done),pct=target?Math.min(100,Math.round(done/target*100)):0;let node=document.getElementById('todayQazoMini');if(!node)return;if(target&&left===0){node.innerHTML=`<div class="inline-top"><div><strong>${L('today_plan_done_title')}</strong><p>${L('today_plan_done_text')}</p></div><button class="link-button" onclick="switchPage('plan')">${L('plan')}</button></div><div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>`;return}node.innerHTML=`<div class="inline-top"><div><strong>${L('today_plan')}</strong><p>${target?`${done} / ${target} ${L('done')} · ${safeCount(left)} ${L('remaining')}`:L('daily_plan_missing')}</p></div><button class="link-button" onclick="switchPage('plan')">${L('continue_plan')}</button></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div><button class="btn primary full" onclick="switchPage('plan')">${L('open_today_plan')}</button>`}
+function topQazo(){return [...QAZO].sort((a,b)=>(D.qazo?.[b]||0)-(D.qazo?.[a]||0))[0]||'fajr'}
+function panel(id,title,sub,icon,body){let open=!!openPanels[id];return `<div class="panel ${open?'open':''}" id="panel-${id}"><div class="panel-head" onclick="togglePanel('${id}')"><div><div class="panel-title">${icon} ${title}</div><div class="panel-sub">${sub}</div></div><div class="panel-chevron">${ICON.chevron}</div></div><div class="panel-body">${body}</div></div>`}
+function togglePanel(id){openPanels[id]=!openPanels[id];renderPlan()}
+function renderPlan(){let p=D.qazo_plan||{},done=Number(p.today_done||0),target=Number(p.today_target||0),left=Math.max(0,target-done),pct=target?Math.min(100,Math.round(done/target*100)):0,total=qazoTotal(),top=topQazo();let hero=document.getElementById('planHero');if(hero)hero.innerHTML=`<div class="plan-hero-top"><div><h2>${target&&left===0?L('today_plan_done_title'):L('today_plan')}</h2><p>${target?`${done} / ${target} ${L('done')} · ${left?`${safeCount(left)} ${L('qoldi')}`:L('accepted')}`:L('plan_desc_missing')}</p></div><div class="plan-pill">${total?safeCount(total):L('remaining_none')}</div></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>${!target?`<button class="btn primary full" onclick="openPlanModal()">${L('make_plan')}</button>`:''}`;
+let tasks=QAZO.map(k=>{let t=p.tasks?.[k]||{target:0,done:0,left:0,active:D.qazo?.[k]||0};if(!t.target&&!t.active)return'';let reached=(Number(t.done||0)>=Number(t.target||0)&&Number(t.target||0)>0),empty=Number(t.active||0)<=0,disabled=reached||empty||window.qazoBusy===k;let label=reached?L('completed_status'):(empty?L('no_remaining_qazo'):L('completed_btn'));return `<div class="task-row"><div><div class="task-title"><span>${EMO[k]}</span> ${P(k)}</div><div class="task-meta">${safeCount(t.active)} ${L('active_qazo')}</div></div><div class="task-goal"><span>${Number(t.done||0)}</span> / ${Number(t.target||0)}</div><button class="task-button ${reached||empty?'done':''}" ${disabled?'disabled':''} onclick="completeQazo('${k}',1)">${label}</button></div>`}).join('');let qt=document.getElementById('qazoTasks');if(qt){if(tasks)qt.innerHTML=tasks;else if(total===0)qt.innerHTML=`<div class="qazo-empty"><strong>${L('qazo_empty_title')}</strong><p>${L('qazo_empty_text')}</p><div class="hint-actions"><button class="hint-mini primary" onclick="openAddQazoPicker()">${L('add_qazo')}</button><button class="hint-mini blue" onclick="openCalcWizard()">${L('qazo_calculator')}</button></div></div>`;else qt.innerHTML=`<div class="qazo-empty"><strong>${L('daily_plan_empty_title')}</strong><p>${L('daily_plan_empty_text')}</p><div class="hint-actions"><button class="hint-mini primary" onclick="openPlanModal()">${L('make_plan')}</button></div></div>`}
+let balBody=`<div class="balance-summary"><div class="overview-item primary"><span>${L('total_remaining')}</span><strong>${safeCount(total)}</strong></div><div class="overview-item"><span>${L('most_remaining')}</span><strong>${P(top)} · ${safeCount(D.qazo?.[top]||0)}</strong></div></div><div class="balance-list">${QAZO.map(k=>`<div class="balance-row"><span>${EMO[k]} ${P(k)}</span><strong>${safeCount(D.qazo?.[k]||0)}</strong></div>`).join('')}</div>`;
+let actionsBody=`<div class="quick-grid"><div class="card quick-card" onclick="openAddQazoPicker()"><div class="quick-icon">${ICON.plus}</div><strong>${L('add_qazo')}</strong><small>${L('add_quick')}</small></div><div class="card quick-card" onclick="openCalcWizard()"><div class="quick-icon">${ICON.calculator}</div><strong>${L('qazo_calculator')}</strong><small>${L('step_by_step')}</small></div><div class="card quick-card" onclick="openPlanModal()"><div class="quick-icon">${ICON.plan}</div><strong>${L('qazo_plan_settings')}</strong><small>${L('daily_order')}</small></div></div>`;
+let hist=(D.qazo_history||[]).length?(D.qazo_history||[]).map(a=>`<div class="history-row"><div><b>${EMO[a.prayer]||''} ${P(a.prayer)} — ${safeCount(a.count)}</b><div class="date">${fmtDate(a.date)}</div></div><button class="link-button" onclick="undoAction(${a.id})">${L('undo')}</button></div>`).join(''):`<div class="hint">${L('no_qazo')}</div>`;
+let panels=document.getElementById('planPanels');if(panels)panels.innerHTML=panel('balance',L('qazo_balance'),`${safeCount(total)} · ${L('most_remaining').toLowerCase()} ${P(top)}`,ICON.checklist,balBody)+panel('actions',L('actions'),`${L('add_qazo')}, ${L('qazo_calculator')}, ${L('qazo_plan_settings').toLowerCase()}`,ICON.plus,actionsBody)+panel('history',L('qazo_history'),L('can_undo'),ICON.calendar,hist)}
+function renderStats(){let total=qazoTotal(),comp=D.stats?.completed||0,today=todayDone(),target=todayTarget(),pct=total+comp?Math.round((comp/(total+comp))*100):0;setText('reportPercent',L('percent_done').replace('{percent}',pct));setText('reportMeta',`${safeCount(comp)} ${L('done')} · ${safeCount(total)} ${L('remaining')}`);setText('reportTodayChip',`${L('today')}: ${today} / ${target||0}`);setText('reportForecastChip',forecastDays());setText('stActive',safeCount(total));setText('stCompleted',safeCount(comp));setText('stToday',`${today} / ${target||0}`);setText('stForecast',forecastDays());let top=[...QAZO].sort((a,b)=>(D.qazo?.[b]||0)-(D.qazo?.[a]||0));let max=top[0],daily=qazoDailyTarget()||1,plus=Math.max(daily+2,7),fast=Math.max(daily+5,10);let insight=document.getElementById('dynamicInsight');if(insight)insight.innerHTML=`<div class="insight-icon">✦</div><div><strong>${total?L('most_remaining_line').replace('{prayer}',P(max)).replace('{count}',safeCount(D.qazo?.[max]||0)):L('no_qazo_remaining')}</strong><p>${total?L('stats_tip_active').replace('{days}',forecastDaysWith(daily)).replace('{prayer}',P(max)):L('stats_tip_empty')}</p></div>`;let advice=document.getElementById('planAdvice');if(advice)advice.innerHTML=total?`<div class="advice-card primary"><span>${L('current_plan')}</span><strong>${forecastDaysWith(daily)}</strong></div><div class="advice-card"><span>${L('per_day').replace('{count}',plus)}</span><strong>${forecastDaysWith(plus)}</strong></div><div class="advice-card"><span>${L('per_day').replace('{count}',fast)}</span><strong>${forecastDaysWith(fast)}</strong></div>`:`<div class="advice-card primary"><span>${L('current_status')}</span><strong>${L('clean')}</strong></div><div class="advice-card"><span>${L('today_plan')}</span><strong>${today}/${target||0}</strong></div><div class="advice-card"><span>${L('recommendation')}</span><strong>${L('keep_going')}</strong></div>`;let sb=document.getElementById('statsBreakdown');if(sb)sb.innerHTML=top.map(k=>`<div class="balance-row"><span>${EMO[k]} ${P(k)}</span><strong>${safeCount(D.qazo?.[k]||0)}</strong></div>`).join('')}
+function summaryFromPrayers(prayers){let vals=STATUS.map(k=>prayers?.[k]||'pending');return {missed:vals.filter(v=>v==='missed').length,prayed:vals.filter(v=>v==='prayed').length,pending:vals.filter(v=>!v||v==='pending').length}}
+function normalizeSummaryMap(raw,month=visibleMonth){let out={};Object.entries(raw||{}).forEach(([k,v])=>{if(!v)return;let key=String(k);let iso=key.length<=2?`${month}-${String(Number(key)).padStart(2,'0')}`:key.slice(0,10);if(iso.startsWith(month))out[iso]={prayed:Number(v.prayed||0),missed:Number(v.missed||0),pending:Number(v.pending||0)}});return out}
+function daySummaryFromData(data,iso){let month=iso.slice(0,7);let map=normalizeSummaryMap(data?.calendar_summary||data?.month_summary||data?.days||{},month);return map[iso]||summaryFromPrayers(data?.prayers||{})}
+function calendarSummaryMap(month=visibleMonth){return {...normalizeSummaryMap(D.calendar_summary||{},month),...(calendarCache[month]||{})}}
+function updateCalendarCacheFromCurrent(){if(!selectedDate||!D.prayers)return;let month=selectedDate.slice(0,7);calendarCache[month]={...(calendarCache[month]||{}),[selectedDate]:summaryFromPrayers(D.prayers)}}
+function daySummary(iso){let month=iso.slice(0,7);let s=calendarSummaryMap(month)[iso]||null;if(!s&&iso===selectedDate){s=summaryFromPrayers(D.prayers||{})}return s}
+async function ensureCalendarMonthSummary(month){if(!month||calendarLoadingMonths[month])return;let [y,m]=month.split('-').map(Number),days=new Date(Date.UTC(y,m,0)).getUTCDate();let existing=calendarSummaryMap(month);let toFetch=[];for(let d=1;d<=days;d++){let iso=`${month}-${String(d).padStart(2,'0')}`;if(isFuture(iso))continue;if(existing[iso])continue;toFetch.push(iso)}if(!toFetch.length)return;calendarLoadingMonths[month]=true;try{let map={...(calendarCache[month]||{}),...normalizeSummaryMap(D.calendar_summary||{},month)};for(let i=0;i<toFetch.length;i+=6){let chunk=toFetch.slice(i,i+6);let results=await Promise.all(chunk.map(iso=>api('/api/data',{date:iso,month}).then(data=>[iso,data]).catch(()=>null)));results.forEach(pair=>{if(pair){let [iso,data]=pair;map[iso]=daySummaryFromData(data,iso)}});calendarCache[month]=map;if(visibleMonth===month)renderCalendar()}}finally{calendarLoadingMonths[month]=false}}
+function renderWeekGrid(){let wg=document.getElementById('weekGrid');if(wg)wg.innerHTML=String(L('weekdays')).split(',').map(x=>`<div>${esc(x)}</div>`).join('')}
+function renderCalendar(){let grid=document.getElementById('monthGrid');if(!grid)return;renderWeekGrid();let [y,m]=visibleMonth.split('-').map(Number);setText('calendarMonth',monthName(visibleMonth));setText('selectedDayTitle',L('selected_day_status').replace('{date}',dateTitle(selectedDate)));let summary=calendarSummaryMap(visibleMonth);let monthVals=Object.values(summary);let md=monthVals.reduce((a,s)=>{a.prayed+=Number(s.prayed||0)>0?1:0;a.missed+=Number(s.missed||0)>0?1:0;a.pending+=Number(s.pending||0)>0?1:0;return a},{prayed:0,missed:0,pending:0});let cs=document.getElementById('calendarSummary');if(cs)cs.innerHTML=`<div class="overview-item primary"><span>${L('days_prayed')}</span><strong>${md.prayed}</strong></div><div class="overview-item"><span>${L('days_missed')}</span><strong>${md.missed}</strong></div><div class="overview-item"><span>${L('days_pending')}</span><strong>${md.pending}</strong></div>`;let first=new Date(Date.UTC(y,m-1,1)),offset=(first.getUTCDay()+6)%7,days=new Date(Date.UTC(y,m,0)).getUTCDate(),html='';for(let i=0;i<offset;i++)html+='<div class="day-cell empty"></div>';let today=todayISO();for(let d=1;d<=days;d++){let iso=`${visibleMonth}-${String(d).padStart(2,'0')}`,s=daySummary(iso),cls=`day-cell ${iso===today?'today':''} ${iso===selectedDate?'selected':''} ${isFuture(iso)?'future':''}`;let dots='<span class="dot"></span><span class="dot"></span><span class="dot"></span>';if(s){if(Number(s.missed||0)>0)dots='<span class="dot danger"></span><span class="dot danger"></span><span class="dot"></span>';else if(Number(s.prayed||0)>0&&Number(s.pending||0)===0)dots='<span class="dot success"></span><span class="dot success"></span><span class="dot success"></span>';else if(Number(s.prayed||0)>0)dots='<span class="dot success"></span><span class="dot"></span><span class="dot"></span>'}html+=`<div class="${cls}" onclick="selectDay('${iso}')"><div class="day-number">${d}</div><div class="dot-row">${dots}</div></div>`}grid.innerHTML=html;let sd=daySummary(selectedDate)||{prayed:0,missed:0,pending:0};let detail=document.getElementById('calendarDayDetail');if(detail)detail.innerHTML=`<strong>${dateTitle(selectedDate)}</strong><p>${L('prayed_count')}: ${Number(sd.prayed||0)} · ${L('missed_count')}: ${Number(sd.missed||0)} · ${L('pending_count')}: ${Number(sd.pending||0)}</p>${Number(sd.pending||0)>0?`<button class="btn blue full" onclick="scrollToCalendarList()">${L('mark_prayers')}</button>`:''}`}
+function scrollToCalendarList(){let el=document.getElementById('calendarList');if(el)el.scrollIntoView({behavior:'smooth'})}
+function changeMonth(n){haptic();visibleMonth=addMonthsYM(visibleMonth,n);selectedDate=clampDayToMonth(visibleMonth,Number(selectedDate.slice(8,10)));renderCalendar();loadData()}
+function selectDay(iso){if(isFuture(iso)){showToast(L('future_blocked'));return}haptic();selectedDate=iso;visibleMonth=iso.slice(0,7);loadData()}
+function switchPage(id){haptic();currentPage=id;if(id==='today'){selectedDate=todayISO();visibleMonth=selectedDate.slice(0,7)}document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+id)?.classList.add('active');document.getElementById('ni-'+id)?.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});loadData()}
 
-    function openSettings() {
-      modalBody.innerHTML = `<div class="modal-title">Sozlamalar</div><div class="modal-sub">${esc(S.city)} · demo HTML versiya</div><div class="modal-actions"><button class="btn gray" type="button" onclick="resetDemo()">Demo ma’lumotlarni tiklash</button><button class="btn gray" type="button" onclick="closeModal()">Yopish</button></div>`;
-      openModal();
-    }
-    function resetDemo() { localStorage.removeItem(STORAGE_KEY); S = defaultState(); closeModal(); switchScreen('today'); showToast('Demo tiklandi'); }
-    function openInfo() {
-      modalBody.innerHTML = `<div class="modal-title">Bu versiyada nima o‘zgardi?</div><div class="modal-sub">App soddalashtirildi: Bugun ekrani faqat hozirgi amalga, Qazo ekrani esa qoldiq va kunlik vazifaga qaratildi. Har bir muhim actiondan keyin bekor qilish imkoniyati bor.</div><button class="btn primary full" type="button" onclick="closeModal()">Tushunarli</button>`;
-      openModal();
-    }
+function openPrayerModal(k){let st=D.prayers?.[k]||'pending';modalBody.innerHTML=`<div class="mtitle">${EMO[k]} ${P(k)}</div><div class="msub">Vaqti: ${D.prayer_times?.[k]||'--:--'}\n${L('current_status')}: ${st==='prayed'?L('prayed'):st==='missed'?L('missed'):L('not_set')}</div><div class="modal-actions"><button class="btn green" onclick="setPrayerStatus('${k}','prayed')">${L('mark_prayed')}</button><button class="btn red" onclick="setPrayerStatus('${k}','missed')">${L('missed')}</button>${st!=='pending'?`<button class="btn blue" onclick="setPrayerStatus('${k}','pending')">${L('make_unset')}</button>`:''}<button class="btn gray" onclick="closeModal()">${L('close')}</button></div>`;openModal()}
+async function setPrayerStatus(k,s){if((s==='prayed'||s==='missed')&&!isDue(k)){showToast(L('not_time'));return}if(s==='missed'&&!seenFlag('missed_action_hint')){openActionHint('missed_action_hint',L('missed_will_be_added_title'),L('missed_will_be_added_text').replace('{prayer}',P(k)),L('yes_missed'),()=>setPrayerStatus(k,s));return}await savePrayerStatus(k,s)}
+async function savePrayerStatus(k,s,skipSnack=false){closeModal();let old=D.prayers?.[k]||'pending';D.prayers=D.prayers||{};D.prayers[k]=s;renderPrayerRows();renderCurrentAction();renderTodayOverview();showToast(L('saving'));try{await postAction({action:'set_prayer_status',prayer:k,status:s,date:selectedDate});await loadData();if(!skipSnack){let label=s==='missed'?L('saved_as_missed').replace('{prayer}',P(k)):L('saved_as_prayed').replace('{prayer}',P(k));showSnackbar(label,L('undo'),()=>savePrayerStatus(k,old,true))}}catch(e){D.prayers[k]=old;renderPrayerRows();renderCurrentAction();renderTodayOverview();showToast(e.message||L('error'));await loadData()}}
+async function completeQazo(k,c){if(window.qazoBusy)return;let t=D.qazo_plan?.tasks?.[k]||{};if(Number(t.target||0)>0&&Number(t.done||0)>=Number(t.target||0)){showToast(L('completed_status'));return}if((D.qazo?.[k]||0)<=0){showToast(L('no_remaining_qazo'));return}if(!seenFlag('complete_action_hint')){openActionHint('complete_action_hint',L('complete_hint_title'),L('complete_hint_text').replace('{prayer}',P(k)),L('completed_btn'),()=>completeQazo(k,c));return}haptic('medium');window.qazoBusy=k;renderPlan();showToast(L('saving'));try{let r=await postAction({action:'complete_qazo',prayer:k,count:c});D.qazo[k]=Math.max(0,(D.qazo[k]||0)-(r.completed||c));D.qazo_completed_today[k]=(D.qazo_completed_today[k]||0)+(r.completed||c);await loadData();let actionId=r.action_id||r.id||r.history_id||((D.qazo_history||[])[0]?.id);showSnackbar(L('completed_one'),actionId?L('undo'):'',actionId?()=>undoAction(actionId):null)}catch(e){showToast(e.message||L('error'));await loadData()}finally{window.qazoBusy=null;renderAll()}}
+async function undoAction(id){try{hideSnackbar();await postAction({action:'undo_qazo_completion',action_id:id});await loadData();showToast(L('undone'))}catch(e){showToast(e.message||L('error'))}}
+function openAddQazoPicker(){modalBody.innerHTML=`<div class="mtitle">${L('add_qazo')}</div><div class="msub">${L('select_missed_prayer_for_date').replace('{date}',dateTitle(selectedDate))}</div><div class="modal-actions">${QAZO.map(k=>`<button class="btn green" onclick="addQazo('${k}')">${EMO[k]} ${P(k)} +1</button>`).join('')}<button class="btn gray" onclick="closeModal()">${L('close')}</button></div>`;openModal()}
+async function addQazo(k){try{await postAction({action:'add_qazo',prayer:k,date:selectedDate});closeModal();await loadData();showSnackbar(L('added_one'),'','')}catch(e){showToast(e.message||L('error'))}}
+function openPlanModal(){let targets={fajr:1,dhuhr:1,asr:1,maghrib:1,isha:1,witr:0,...(D.qazo_plan?.daily_targets||{})};window.planDraft={enabled:D.qazo_plan?.enabled!==false,mode:D.qazo_plan?.mode||'balanced',daily_targets:{...targets}};renderPlanModal()}
+function renderPlanModal(){let d=window.planDraft;modalBody.innerHTML=`<div class="mtitle">${L('plan_title')}</div><div class="msub">${L('plan_desc')}</div><div class="seg"><button class="${d.mode==='balanced'?'on':''}" onclick="setPlanMode('balanced')">${L('balanced')}</button><button class="${d.mode==='focus'?'on':''}" onclick="setPlanMode('focus')">${L('focus')}</button><button class="${d.mode==='custom'?'on':''}" onclick="setPlanMode('custom')">${L('custom')}</button></div><div class="planEdit">${QAZO.map(k=>`<div class="editLine"><div>${EMO[k]} <b>${P(k)}</b></div><div class="stepper"><button onclick="changeTarget('${k}',-1)">−</button><span>${d.daily_targets[k]||0}</span><button onclick="changeTarget('${k}',1)">+</button></div></div>`).join('')}</div><div class="modal-actions"><button class="btn ${d.enabled?'green':'gray'}" onclick="togglePlanEnabled()">${d.enabled?L('enabled'):L('disabled')}</button><button class="btn primary" onclick="savePlan()">${L('save')}</button><button class="btn gray" onclick="closeModal()">${L('cancel')}</button></div>`;openModal()}
+function setPlanMode(mode){let d=window.planDraft;d.mode=mode;if(mode==='balanced')d.daily_targets={fajr:1,dhuhr:1,asr:1,maghrib:1,isha:1,witr:1};if(mode==='focus')d.daily_targets={fajr:1,dhuhr:0,asr:0,maghrib:0,isha:0,witr:0};renderPlanModal()}
+function changeTarget(k,n){let d=window.planDraft;d.mode='custom';d.daily_targets[k]=Math.max(0,Math.min(99,(d.daily_targets[k]||0)+n));renderPlanModal()}function togglePlanEnabled(){window.planDraft.enabled=!window.planDraft.enabled;renderPlanModal()}
+async function savePlan(){try{await postAction({action:'save_qazo_plan',...window.planDraft});closeModal();await loadData();showToast(L('plan_saved'))}catch(e){showToast(e.message||L('error'))}}
 
-    function openModal(mode = '') { modal.classList.toggle('full', mode === 'full'); modal.classList.add('show'); }
-    function closeModal(e) { if (e && e.target !== modal) return; modal.classList.remove('show', 'full'); }
-    function showToast(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => toast.classList.remove('show'), 2200); }
-    function showSnackbar(msg, action, fn) {
-      snackbarText.textContent = msg;
-      snackbarAction.textContent = action || '';
-      snackbarAction.style.display = action && fn ? 'inline-flex' : 'none';
-      snackbarAction.onclick = () => { snackbar.classList.remove('show'); fn?.(); };
-      snackbar.classList.add('show');
-      clearTimeout(snackbar._t);
-      snackbar._t = setTimeout(() => snackbar.classList.remove('show'), 6500);
-    }
+function openCalcWizard(){calcStep=1;calcDraft={start:addDays(todayISO(),-30),end:todayISO(),result:null};calcSelected=['fajr','dhuhr','asr','maghrib','isha','witr'];renderCalcWizard()}
+function calcStepBar(){return `<div class="wizard-steps"><div class="wizard-step ${calcStep>=1?'on':''}"></div><div class="wizard-step ${calcStep>=2?'on':''}"></div><div class="wizard-step ${calcStep>=3?'on':''}"></div></div>`}
+function renderCalcWizard(){let body='';if(calcStep===1){body=`<div class="mtitle">${L('select_period')}</div><div class="msub">${L('calc_desc')}</div>${calcStepBar()}<div class="form-row"><div><div class="form-label">${L('from_date')}</div><input id="calcStart" class="input" type="date" max="${todayISO()}" value="${calcDraft.start}"></div><div><div class="form-label">${L('to_date')}</div><input id="calcEnd" class="input" type="date" max="${todayISO()}" value="${calcDraft.end}"></div></div><div class="wizard-spacer"></div><button class="btn primary full" onclick="calcNextFromDates()">${L('continue')}</button><button class="btn gray full" onclick="closeModal()">${L('cancel')}</button>`}
+if(calcStep===2){body=`<div class="mtitle">${L('select_prayers')}</div><div class="msub">${L('calc_step2_desc')}</div>${calcStepBar()}<div class="chip-row">${QAZO.map(k=>`<div class="chip ${calcSelected.includes(k)?'on':''}" onclick="toggleCalcPrayer('${k}')">${EMO[k]} ${P(k)}</div>`).join('')}</div><div class="wizard-spacer"></div><div class="button-row"><button class="btn gray" onclick="calcStep=1;renderCalcWizard()">${L('back')}</button><button class="btn primary" onclick="previewQazoCalc()">${L('calculate')}</button></div>`}
+if(calcStep===3){let r=calcDraft.result;body=`<div class="mtitle">${L('confirm_calc')}</div><div class="msub">${L('confirm_calc_desc')}</div>${calcStepBar()}<div class="calc-result">${calcPreviewText(r)}</div><div class="wizard-spacer"></div><div class="button-row"><button class="btn gray" onclick="calcStep=2;renderCalcWizard()">${L('back')}</button><button class="btn green" onclick="applyQazoCalc()">${L('add_to_qazo')}</button></div>`}modalBody.innerHTML=`<div class="wizard-top"><button class="btn gray" style="width:auto;min-height:38px" onclick="closeModal()">${L('close')}</button><div class="wizard-count">${calcStep} / 3</div></div>`+body;openModal('fullscreen')}
+function calcNextFromDates(){calcDraft.start=document.getElementById('calcStart').value;calcDraft.end=document.getElementById('calcEnd').value;if(!calcDraft.start||!calcDraft.end){showToast(L('error'));return}if(calcDraft.start>calcDraft.end){showToast(L('date_order_error'));return}calcStep=2;renderCalcWizard()}
+function toggleCalcPrayer(k){haptic();calcSelected=calcSelected.includes(k)?calcSelected.filter(x=>x!==k):[...calcSelected,k];renderCalcWizard()}
+function calcPreviewText(r){if(!r)return L('calculating');let rows=QAZO.filter(k=>r.breakdown?.[k]).map(k=>`${P(k)}: <b>${safeCount(r.breakdown[k])}</b> (${r.created_breakdown?.[k]||0} ${L('new')})`).join('<br>');return `<b>${fmtDate(r.start_date)} — ${fmtDate(r.end_date)}</b><br>${L('days')}: ${safeCount(r.days_count)}<br>${L('total')}: <b>${safeCount(r.total_count)}</b><br>${L('new_add')}: <b>${safeCount(r.will_create_count)}</b><br>${L('duplicate')}: ${safeCount(r.skipped_existing_count)}<br><br>${rows||'—'}`}
+async function previewQazoCalc(){if(!calcSelected.length){showToast(L('select_one_prayer'));return}haptic('medium');modalBody.innerHTML=`<div class="wizard-top"><button class="btn gray" style="width:auto;min-height:38px" onclick="closeModal()">${L('close')}</button><div class="wizard-count">2 / 3</div></div><div class="mtitle">${L('calculating')}</div><div class="msub">${L('calc_checking')}</div>`;try{let r=await postAction({action:'calculate_qazo',start_date:calcDraft.start,end_date:calcDraft.end,prayers:calcSelected});calcDraft.result=r;calcStep=3;renderCalcWizard()}catch(e){showToast(e.message||L('error'));calcStep=2;renderCalcWizard()}}
+async function applyQazoCalc(){if(!calcDraft.result)return;haptic('medium');modalBody.innerHTML=`<div class="wizard-top"><button class="btn gray" style="width:auto;min-height:38px" onclick="closeModal()">${L('close')}</button><div class="wizard-count">3 / 3</div></div><div class="mtitle">${L('adding')}</div><div class="msub">${L('adding_to_balance')}</div>`;try{let r=await postAction({action:'apply_qazo_calculation',start_date:calcDraft.result.start_date,end_date:calcDraft.result.end_date,prayers:calcSelected});closeModal();await loadData();showSnackbar(`${safeCount(r.created_count)} ${L('added').toLowerCase()}`,'','')}catch(e){showToast(e.message||L('error'));renderCalcWizard()}}
 
-    render();
-    switchScreen(S.screen || 'today');
-    setInterval(() => { if (S.screen === 'today') render(); }, 30000);
-  </script>
+async function toggleReminder(type){let key=type==='prayer'?'prayer_reminders':'qazo_reminders',old=D.settings?.[key]!==false,value=!old;D.settings=D.settings||{};D.settings[key]=value;try{await postAction({action:'set_setting',type,value});showToast(value?L('on'):L('off'));openSettingsModal()}catch(e){D.settings[key]=old;showToast(L('error'))}}
+function openSettingsModal(){let daily=qazoDailyTarget();modalBody.innerHTML=`<div class="mtitle">${L('settings')}</div><div class="msub">${D.city||'Toshkent'} · ${D.lang||'uz'}</div><div class="settings-row" onclick="openLangPicker()"><span>${L('language')}</span><b>${LANGS.find(x=>x.c===D.lang)?.n||'O‘zbekcha'}</b></div><div class="settings-row" onclick="openCityPicker()"><span>${L('city')}</span><b>${D.city||'Toshkent'}</b></div><div class="settings-row" onclick="toggleReminder('prayer')"><span>${L('prayer_reminders')}</span><b>${D.settings?.prayer_reminders===false?L('off'):L('on')}</b></div><div class="settings-row" onclick="toggleReminder('qazo')"><span>${L('qazo_reminders')}</span><b>${D.settings?.qazo_reminders===false?L('off'):L('on')}</b></div><div class="settings-row" onclick="openPlanModal()"><span>${L('qazo_plan_settings')}</span><b>${safeCount(daily)}/${L('day')}</b></div><button class="btn gray full" onclick="closeModal()">${L('close')}</button>`;openModal()}
+function openLangPicker(){modalBody.innerHTML=`<div class="mtitle">${L('select_lang')}</div><div class="modal-actions">${LANGS.map(l=>`<button class="btn ${D.lang===l.c?'green':'gray'}" onclick="setLang('${l.c}')">${l.n}</button>`).join('')}<button class="btn gray" onclick="closeModal()">${L('cancel')}</button></div>`;openModal()}
+async function setLang(code){D.lang=code;closeModal();renderAll();try{await postAction({action:'set_lang',lang:code});await loadData();D.lang=code;renderAll();showToast(L('lang_updated'))}catch(e){D.lang=code;renderAll();showToast(L('error'))}}
+function openCityPicker(){modalBody.innerHTML=`<div class="mtitle">${L('select_city')}</div><div class="modal-actions">${CITIES.map(c=>`<button class="btn ${D.city===c?'green':'gray'}" onclick='setCity(${JSON.stringify(c)})'>${esc(c)}</button>`).join('')}<button class="btn gray" onclick="closeModal()">${L('cancel')}</button></div>`;openModal()}
+async function setCity(c){closeModal();try{await postAction({action:'set_city',city:c});await loadData();showToast(L('city_updated'))}catch(e){showToast(L('error'))}}
+function openInfoModal(){modalBody.innerHTML=`<div class="mtitle">${L('info_title')}</div><div class="msub">${L('info_text')}</div><div class="modal-actions"><button class="btn blue" onclick="openOnboardingModal(true)">${L('reopen_guide')}</button><button class="btn green" onclick="closeModal()">${L('close')}</button></div>`;openModal()}
+function openModal(mode=''){modal.classList.remove('fullscreen');if(mode==='fullscreen')modal.classList.add('fullscreen');modal.classList.add('show')}function closeModal(e){if(e&&e.target!==modal)return;modal.classList.remove('show','fullscreen')}
+
+function showSnackbar(message,actionLabel,actionFn){let bar=document.getElementById('snackbar'),txt=document.getElementById('snackbarText'),btn=document.getElementById('snackbarAction');if(!bar||!txt||!btn){showToast(message);return}clearTimeout(snackbarTimer);txt.textContent=message;btn.textContent=actionLabel||'';btn.style.display=actionLabel&&actionFn?'inline-flex':'none';btn.onclick=()=>{hideSnackbar();if(typeof actionFn==='function')actionFn()};bar.classList.add('show');snackbarTimer=setTimeout(hideSnackbar,6500)}
+function hideSnackbar(){let bar=document.getElementById('snackbar');if(bar)bar.classList.remove('show');clearTimeout(snackbarTimer)}
+
+function showToast(msg){toast.textContent=msg;toast.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>toast.classList.remove('show'),2200)}
+function showRegistrationRequired(msg){document.body.innerHTML=`<div class="gate"><div class="gate-card"><div class="gate-ico">🔐</div><div class="gate-title">${L('app_gate_title')}</div><div class="gate-text">${msg||L('registration_required_default')}</div></div></div>`}
+
+async function initApp(){renderLoading();await loadData();setTimeout(()=>{if(shouldShowOnboarding())openOnboardingModal()},360)}
+initApp();
+setInterval(()=>{if(loaded){renderClock();renderCurrentAction();renderTodayOverview();renderPrayerRows();renderHints()}},1000);
+setInterval(()=>{if(loaded)loadData()},45000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadData()});
+</script>
 </body>
 </html>
